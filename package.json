@@ -1,0 +1,24 @@
+{
+  "name": "izumi-contracts-uniswapv3mining",
+  "version": "1.0.0",
+  "description": "The contracts to mine uniswap V3 NFT token",
+  "main": "hardhat.config.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IzumiFinanceLab/Izumi-contracts-UniswapV3Mining.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/IzumiFinanceLab/Izumi-contracts-UniswapV3Mining/issues"
+  },
+  "homepage": "https://github.com/IzumiFinanceLab/Izumi-contracts-UniswapV3Mining#readme"
+}
