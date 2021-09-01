@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: AML
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
 import "hardhat/console.sol";
@@ -92,6 +92,5 @@ contract Mining {
     }
 
     function getRewardForAll() public {
-
     }
 }
