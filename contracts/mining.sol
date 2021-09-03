@@ -134,7 +134,8 @@ contract Mining is Trustable {
     }
 
     function deposit(uint256 tokenId) public returns (uint256 vLiquidity) {
-        (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = INonfungiblePositionManager(uniV3NFTManagerAddress).positions(tokenId);
+        (, address owner, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = INonfungiblePositionManager(uniV3NFTManagerAddress).positions(tokenId);
+        require(owner == msg.sender, "NOT OWNER");
 
         // alternatively we can compute the pool address with tokens and fee and compare the address directly
         require(token0 == rewardPool.token0);
