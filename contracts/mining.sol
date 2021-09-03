@@ -3,118 +3,194 @@ pragma solidity ^0.8.4;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./interface/INonfungiblePositionManager.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+import "./Trustable.sol";
+import "./interface/INonfungiblePositionManager.sol";
 
-contract Mining {
+library Math {
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a >= b ? a : b;
+    }
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+}
+
+contract Mining is Trustable {
     using SafeMath for uint256;
-    using Counters for Counters.Counter;
+    using SafeERC20 for IERC20;
 
-    Counters.Counter private _itemNum;
-
-    address LPTokenAddress; // contract address of reward erc20 token
-    address rewardTokenAddress; // contract address of reward erc20 token
-    address uniV3NFTManagerAddress; // contract addres of uniV3 NFT Manager
-    address uniV3NFTAddress; // contract address of uniV3 NFT
-
-    // the reward range of this mining contract is [lowertick, uppertick]
-    int24 upperTick;
-    int24 lowerTick;
-
-    uint256 lastRewardBlock;  // last block number that reward occurs
-    uint256 accTokenPerShare; // Accumulated Reward Tokens per share, times 1e12. See below.
-
-    uint256 rewardPerBlock;
-    uint256 totalAmount;
-
-    // The block number when NFT mining starts.
-    uint256 public startBlock;
-    // The block number when NFT mining ends.
-    uint256 public endBlock;
-
-    struct Item {
-        address owner;
-        uint256 tokenId;
-        bool exist;
+    struct PoolInfo {
+        address token0;
+        address token1;
+        uint24 fee;
     }
 
-    mapping(uint256 => Item) private id2item;
+    PoolInfo public rewardPool;
+
+    // contract of LP erc20 token
+    // TODO: to use it
+    IERC20 LPToken; 
+    // contract of reward erc20 token
+    IERC20 rewardToken; 
+
+    // contract of uniV3 NFT Manager
+    INonfungiblePositionManager uniV3NFTManager; 
+
+    // the reward range of this mining contract.
+    int24 rewardUpperTick;
+    int24 rewardLowerTick;
+
+    // Accumulated Reward Tokens per share, times 1e48.
+    uint256 accRewardPerShare; 
+    // last block number that the accRewardRerShare is touched
+    uint256 lastTouchBlock;  
+
+    uint256 rewardPerBlock;
+    uint256 totalVLiquidity;
+
+    // The block number when NFT mining starts/ends.
+    uint256 public startBlock;
+    uint256 public endBlock;
+
+    // store the owner of the NFT token
+    mapping(uint => address) public owners;
+    mapping(uint => EnumerableSet.UintSet) private tokenIds;
+
+    struct TokenStatus {
+        uint256 vLiquidity;
+        uint64 lastTouchBlock;
+        uint256 lastTouchAccRewardPerShare;
+    }
+
+    // record the last time a certain token is touched 
+    mapping(uint => TokenStatus) tokenStatus;
 
     // Events
-    event Deposit(address indexed user, uint256 tokenId, uint256 itemId);
-    event Withdraw(address indexed user, uint256 tokenId, uint256 itemId);
+    event Deposit(address indexed user, uint256 tokenId);
+    event Withdraw(address indexed user, uint256 tokenId);
+    event CollectReward(address indexed user, uint256 tokenId, uint256 amount);
 
     constructor(
-        INonfungiblePositionManager _uniV3NFTManager,
-        IERC721 _uniV3NFT,
-        IERC20 _lpToken,
-        IERC20 _rewardToken,
+        address _uniV3NFTManager,
+        address _lpToken,
+        address _rewardToken,
         uint256 _rewardPerBlock,
         uint _startBlock,
         uint _endBlock
     ) {
-        uniV3NFTManager = _uniV3NFTManager;
-        uniV3NFT = _uniV3NFT;
+        uniV3NFTManager = INonfungiblePositionManager(_uniV3NFTManager);
 
-        lpToken = _lpToken;
-        rewardToken = _rewardToken;
+        lpToken = IERC20(_lpToken);
+        rewardToken = IERC20(_rewardToken);
 
         rewardPerBlock = _rewardPerBlock;
 
         startBlock = _startBlock;
         endBlock = _endBlock;
-        lastRewardBlock = startBlock;
-        accTokenPerShare = 0;
-        totalAmount = 0;
+        lastTouchBlock = startBlock;
+        accRewardPerShare = 0;
+        totalVLiquidity = 0;
     }
 
-    function getAmountForNFT(uint256 tokenId) view public returns (uint256 amount) {
-        // the tick range of the position
-        int24 tickLower;
-        int24 tickUpper;
-        // the liquidity of the position
-        uint128 liquidity;
-
-        (,, poolId, tickLower, tickUpper, liquidity,,,,) = INonfungiblePositionManager(uniV3NFTManagerAddress).positions(tokenId);
-        amount = max(min(upperTick, tickUpper) - max(lowerTick,tickLower), 0) * liquidity;
-        return amount;
+    function getVLiquidityForNFT(
+        int24 tickLower, 
+        int24 tickUpper, 
+        uint128 liquidity
+    ) internal returns (uint256 vLiquidity) {
+        vLiquidity = Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0) * liquidity;
+        return vLiquidity;
     }
 
-    // deposit NFT from user and returns according Reward tokens
-    function deposit(uint256 tokenId) public returns (uint256 amount) {
-        amount = getAmountForNFT(tokenId);
-        require(amount > 0, "INVALID NFT");
-
-        IERC721(uniV3NFTAddress).transferFrom(msg.sender, address(this), tokenId);
-        _itemNum.increment();
-        uint itemId = _itemNum.current();
-        id2item[itemId] = Item(
-            msg.sender,
-            tokenId,
-            true
-        );
-        
-        updatePool(amount);
-
-        IERC20(LPTokenAddress).transferFrom(address(this), msg.sender, amount);
-        return amount;
+    function _updateTokenStatus(uint256 tokenId, uint vLiquidity) internal {
+        TokenStatus t = tokenStatus[tokenId];
+        if (vLiquidity > 0) {
+            t.vLiquidity = vLiquidity;
+        }
+        t.lastTouchBlock = lastTouchBlock;
+        t.lastTouchAccRewardPerShare = accRewardPerShare; 
     }
 
-    // withdraw NFT and returns according Reward tokens
-    function withdraw(uint256 itemId) public {
-        require(id2item[itemId].owner == msg.sender, "NOT OWNER");
-        require(id2item[itemId].exist == true, "NOT EXIST");
+    // Update reward variables to be up-to-date.
+    function _updateVLiquidity(uint vLiquidity) internal {
+        totalVLiquidity += vLiquidity;
+        // TODO?
+        // mint and send lp tokens to msg.sender
+    }
 
-        amount = getAmountForNFT(id2item[itemId].tokenId);
+    function _updateGlobalStatus() {
+        if (lastTouchBlock >= block.number) {
+            return;
+        }
 
-        updatePool(-amount);
+        // acc(T) = acc(T-N) + N * R * 1 / sum(L)
+        uint256 multiplier = getMultiplier(lastTouchBlock, block.number);
+        uint256 tokenReward = multiplier.mul(rewardPerBlock);
+        accRewardPerShare = accRewardPerShare.add(tokenReward.mul(1e48).div(totalVLiquidity));
+        lastTouchBlock = block.number;
+    }
 
-        IERC20(LPTokenAddress).transferFrom(msg.sender, address(this), amount);
-        IERC721(uniV3NFTAddress).transferFrom(address(this), msg.sender, id2item[itemId].tokenId);
-        delete id2item[itemId];
+    function deposit(uint256 tokenId) public returns (uint256 vLiquidity) {
+        (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = INonfungiblePositionManager(uniV3NFTManagerAddress).positions(tokenId);
+
+        // alternatively we can compute the pool address with tokens and fee and compare the address directly
+        require(token0 == rewardPool.token0);
+        require(token1 == rewardPool.token1);
+        require(fee == rewardPool.fee);
+
+        vLiquidity = getAmountForNFT(tickLower, tickUpper, liquidity);
+        require(vLiquidity > 0, "INVALID Token");
+
+        uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
+        owners[tokenId] = msg.sender;
+        tokenIds[msg.sender].add(tokenId);
+
+        // the execution order for the next three lines is crutial
+        _updateGlobalStatus();
+        _updateVLiquidity(vLiquidity);
+        _updateTokenStatus(tokenId, vLiquidity);
+
+        emit Deposit(msg.sender, tokenId);
+        return vLiquidity;
+    }
+
+    function withdraw(uint256 tokenId) public {
+        require(owners[tokenId] == msg.sender, "NOT OWNER");
+
+        collectReward(tokenId);
+        uint vLiquidity = tokenStatus[tokenId].vLiquidity;
+        _updateVLiquidity(-vLiquidity);
+
+        uniV3NFTManager.safeTransferFrom(address(this), msg.sender,tokenId);
+        owners[tokenId] = address(0);
+        tokenIds[msg.sender].remove(tokenId);
+
+        emit Withdraw(msg.sender, tokenId);
+    }
+
+    function collectReward(uint256 tokenId) public {
+        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
+        TokenStatus memory t = tokenStatus[tokenId];
+
+        _updateGlobalStatus();
+
+        // l * (currentAcc - lastAcc)
+        uint _reward = t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
+        require(_reward > 0);
+        rewardToken.safeTransferFrom(address(this), msg.sender, _reward);
+        _updateTokenStatus(tokenId, 0);
+
+        emit collectReward(msg.sender, tokenId, _reward);
+    }
+
+    function collectRewards() public {
+        EnumerableSet.UintSet memory ids = tokenIds[msg.sender];
+        for (uint i = 0; i < ids.length(); i++) {
+           colletReward(ids.at(i));
+        }
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -128,47 +204,42 @@ contract Mining {
         }
     }
 
-    // View function to see tokens from one user on frontend.
-    function getNFTIdsForUser(address _user) view external returns (uint[] tokenIds) {
-        uint[] tokenIds;
-        for (uint i = 0; i < _itemNum.current(); i++) {
-            if (id2item[i].retrieved) continue;
-            if (id2item[i].owner == _user) {
-                tokenIds.push(i);
-            }
+
+    // View function to see tokens from one user.
+    function getTokenIds(address _user) view external returns (uint[] list) {
+        uint [] list;
+        EnumerableSet.UintSet memory ids = tokenIds[_user];
+
+        for (uint i = 0; i < ids.length(); i++) {
+            list.push(ids.at(i));
         }
-        return tokenIds;
+        return list;
     }
 
-    // View function to see pending Reward on frontend.
+
+    // View function to see pending Reward.
     function pendingReward(uint256 itemId) external view returns (uint256) {
-        if (block.number > pool.lastRewardBlock && totalAmount != 0) {
-            uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 tokenReward = multiplier.mul(rewardPerBlock);
-            accTokenPerShare = accTokenPerShare.add(cakeReward.mul(1e12).div(totalAmount));
-        }
-        return user.amount.mul(accCakePerShare).div(1e12).sub(user.rewardDebt);
+        TokenStatus memory t = tokenStatus[tokenId];
+        _updateGlobalStatus();
+        // l * (currentAcc - lastAcc)
+        uint _reward = t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
+        return _reward;
     }
 
-    // 
-    function getReward(uint256 itemId) public {
-
-    }
-
-    // Update reward variables to be up-to-date.
-    function updatePool(uint amount) public {
-        if (block.number <= lastRewardBlock) {
-            return;
+    // View function to see pending Reward.
+    function pendingRewards(address _user) external view returns (uint256) {
+        EnumerableSet.UintSet memory ids = tokenIds[_user];
+        _updateGlobalStatus();
+        uint _reward = 0;
+        for (uint i = 0; i < ids.length(); i++) {
+            TokenStatus memory t = tokenStatus[ids.at(i)];
+            _reward += t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
         }
-        if (totalAmount == 0) {
-            pool.lastRewardBlock = block.number;
-            return;
-        }
-        uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 tokenReward = multiplier.mul(rewardPerBlock);
-        accTokenPerShare = accTokenPerShare.add(tokenReward.mul(1e12).div(totalAmount));
-        // update new state
-        totalAmount += amount;
-        lastRewardBlock = block.number;
+
+        return _reward;
     }
+    
+    // TODO: add control actions for the contract owner and operators
+    // //
+
 }
