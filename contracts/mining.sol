@@ -45,6 +45,7 @@ interface PositionManagerV3 {
 contract Mining is Trustable {
     using Math for int24;
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.UintSet;
 
     struct PoolInfo {
         address token0;
@@ -83,11 +84,11 @@ contract Mining is Trustable {
 
     // store the owner of the NFT token
     mapping(uint => address) public owners;
-    mapping(uint => EnumerableSet.UintSet) private tokenIds;
+    mapping(address => EnumerableSet.UintSet) private tokenIds;
 
     struct TokenStatus {
         uint256 vLiquidity;
-        uint64 lastTouchBlock;
+        uint256 lastTouchBlock;
         uint256 lastTouchAccRewardPerShare;
     }
 
@@ -131,8 +132,8 @@ contract Mining is Trustable {
         int24 tickLower,
         int24 tickUpper,
         uint128 liquidity
-    ) internal returns (uint256 vLiquidity) {
-        vLiquidity = uint256(Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0)) * uint256(liquidity);
+    ) internal view returns (uint256 vLiquidity) {
+        vLiquidity = uint24(Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0)) * uint256(liquidity);
         return vLiquidity;
     }
 
@@ -146,8 +147,12 @@ contract Mining is Trustable {
     }
 
     // Update reward variables to be up-to-date.
-    function _updateVLiquidity(uint vLiquidity) internal {
-        totalVLiquidity += vLiquidity;
+    function _updateVLiquidity(uint vLiquidity, bool isAdd) internal {
+        if (isAdd) {
+            totalVLiquidity = totalVLiquidity + vLiquidity;
+        } else {
+            totalVLiquidity = totalVLiquidity + vLiquidity;
+        }
         // TODO?
         // add total Liquidity limit?
         // mint and send lp tokens to msg.sender
@@ -160,8 +165,8 @@ contract Mining is Trustable {
 
         // acc(T) = acc(T-N) + N * R * 1 / sum(L)
         uint256 multiplier = getMultiplier(lastTouchBlock, block.number);
-        uint256 tokenReward = multiplier.mul(rewardPerBlock);
-        accRewardPerShare = accRewardPerShare.add(tokenReward.mul(1e48).div(totalVLiquidity));
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        accRewardPerShare = accRewardPerShare + (tokenReward * 1e48 / totalVLiquidity);
         lastTouchBlock = block.number;
     }
 
@@ -184,7 +189,7 @@ contract Mining is Trustable {
 
         // the execution order for the next three lines is crutial
         _updateGlobalStatus();
-        _updateVLiquidity(vLiquidity);
+        _updateVLiquidity(vLiquidity, true);
         _updateTokenStatus(tokenId, vLiquidity);
 
         emit Deposit(msg.sender, tokenId);
@@ -196,7 +201,7 @@ contract Mining is Trustable {
 
         collectReward(tokenId);
         uint vLiquidity = tokenStatus[tokenId].vLiquidity;
-        _updateVLiquidity(-vLiquidity);
+        _updateVLiquidity(vLiquidity, false);
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
         owners[tokenId] = address(0);
@@ -212,16 +217,16 @@ contract Mining is Trustable {
         _updateGlobalStatus();
 
         // l * (currentAcc - lastAcc)
-        uint _reward = t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
+        uint _reward = t.vLiquidity * (accRewardPerShare - t.lastTouchAccRewardPerShare) / 1e48;
         require(_reward > 0);
         rewardToken.safeTransferFrom(address(this), msg.sender, _reward);
         _updateTokenStatus(tokenId, 0);
 
-        emit collectReward(msg.sender, tokenId, _reward);
+        emit CollectReward(msg.sender, tokenId, _reward);
     }
 
     function collectRewards() public {
-        EnumerableSet.UintSet memory ids = tokenIds[msg.sender];
+        EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint i = 0; i < ids.length(); i++) {
            collectReward(ids.at(i));
         }
@@ -230,22 +235,23 @@ contract Mining is Trustable {
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
         if (_to <= endBlock) {
-            return _to.sub(_from);
+            return _to - _from;
         } else if (_from >= endBlock) {
             return 0;
         } else {
-            return endBlock.sub(_from);
+            return endBlock - _from;
         }
     }
 
 
     // View function to see tokens from one user.
-    function getTokenIds(address _user) view external returns (uint[] memory tokenIdList) {
-        uint[] memory tokenIdList;
-        EnumerableSet.UintSet memory ids = tokenIds[_user];
-
+    function getTokenIds(address _user) view external returns (uint[] memory) {
+        EnumerableSet.UintSet storage ids = tokenIds[_user];
+        // push could not be used in memory array
+        // we set the tokenIdList into a fixed-length array rather than dynamic
+        uint[] memory tokenIdList = new uint[](ids.length());
         for (uint i = 0; i < ids.length(); i++) {
-            tokenIdList.push(ids.at(i));
+            tokenIdList[i] = ids.at(i);
         }
         return tokenIdList;
     }
@@ -254,20 +260,23 @@ contract Mining is Trustable {
     // View function to see pending Reward.
     function pendingReward(uint256 itemId) external view returns (uint256) {
         TokenStatus memory t = tokenStatus[itemId];
-        _updateGlobalStatus();
+        uint256 multiplier = getMultiplier(lastTouchBlock, block.number);
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        uint256 rewardPerShare = accRewardPerShare + tokenReward * 1e48 / totalVLiquidity;
         // l * (currentAcc - lastAcc)
-        uint _reward = t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
+        uint _reward = t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare) / 1e48;
         return _reward;
     }
 
     // View function to see pending Reward.
     function pendingRewards(address _user) external view returns (uint256) {
-        EnumerableSet.UintSet memory ids = tokenIds[_user];
-        _updateGlobalStatus();
+        uint256 multiplier = getMultiplier(lastTouchBlock, block.number);
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        uint256 rewardPerShare = accRewardPerShare + tokenReward * 1e48 / totalVLiquidity;
         uint _reward = 0;
-        for (uint i = 0; i < ids.length(); i++) {
-            TokenStatus memory t = tokenStatus[ids.at(i)];
-            _reward += t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
+        for (uint i = 0; i < tokenIds[_user].length(); i++) {
+            TokenStatus memory t = tokenStatus[tokenIds[_user].at(i)];
+            _reward += t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare) / 1e48;
         }
 
         return _reward;
@@ -275,5 +284,4 @@ contract Mining is Trustable {
     
     // TODO: add control actions for the contract owner and operators
     // //
-
 }
