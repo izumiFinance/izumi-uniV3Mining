@@ -7,13 +7,13 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import "./Trustable.sol";
+import "./trustable.sol";
 
 library Math {
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+    function max(int24 a, int24 b) internal pure returns (int24) {
         return a >= b ? a : b;
     }
-    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+    function min(int24 a, int24 b) internal pure returns (int24) {
         return a < b ? a : b;
     }
 }
@@ -43,7 +43,7 @@ interface PositionManagerV3 {
 }
 
 contract Mining is Trustable {
-    using SafeMath for uint256;
+    using Math for int24;
     using SafeERC20 for IERC20;
 
     struct PoolInfo {
@@ -61,7 +61,7 @@ contract Mining is Trustable {
     IERC20 rewardToken; 
 
     // contract of uniV3 NFT Manager
-    INonfungiblePositionManager uniV3NFTManager; 
+    PositionManagerV3 uniV3NFTManager; 
 
     // the reward range of this mining contract.
     int24 public rewardUpperTick;
@@ -101,7 +101,7 @@ contract Mining is Trustable {
 
     constructor(
         address _uniV3NFTManager,
-        address _lpToken,
+        // address _lpToken,
         address _rewardToken,
         uint256 _rewardPerBlock,
         int24 _rewardUpperTick,
@@ -109,9 +109,9 @@ contract Mining is Trustable {
         uint _startBlock,
         uint _endBlock
     ) {
-        uniV3NFTManager = INonfungiblePositionManager(_uniV3NFTManager);
+        uniV3NFTManager = PositionManagerV3(_uniV3NFTManager);
 
-        lpToken = IERC20(_lpToken);
+        // lpToken = IERC20(_lpToken);
         rewardToken = IERC20(_rewardToken);
 
         rewardPerBlock = _rewardPerBlock;
@@ -132,12 +132,12 @@ contract Mining is Trustable {
         int24 tickUpper,
         uint128 liquidity
     ) internal returns (uint256 vLiquidity) {
-        vLiquidity = Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0) * liquidity;
+        vLiquidity = uint256(Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0)) * uint256(liquidity);
         return vLiquidity;
     }
 
     function _updateTokenStatus(uint256 tokenId, uint vLiquidity) internal {
-        TokenStatus t = tokenStatus[tokenId];
+        TokenStatus storage t = tokenStatus[tokenId];
         if (vLiquidity > 0) {
             t.vLiquidity = vLiquidity;
         }
@@ -153,7 +153,7 @@ contract Mining is Trustable {
         // mint and send lp tokens to msg.sender
     }
 
-    function _updateGlobalStatus() {
+    function _updateGlobalStatus() internal {
         if (lastTouchBlock >= block.number) {
             return;
         }
@@ -166,7 +166,7 @@ contract Mining is Trustable {
     }
 
     function deposit(uint256 tokenId) public returns (uint256 vLiquidity) {
-        (, address owner, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = INonfungiblePositionManager(uniV3NFTManagerAddress).positions(tokenId);
+        (, address owner, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = uniV3NFTManager.positions(tokenId);
         require(owner == msg.sender, "NOT OWNER");
 
         // alternatively we can compute the pool address with tokens and fee and compare the address directly
@@ -175,7 +175,7 @@ contract Mining is Trustable {
         require(fee == rewardPool.fee);
 
         // require the NFT token has interaction with [rewardLowerTick, rewardUpperTick]
-        vLiquidity = getAmountForNFT(tickLower, tickUpper, liquidity);
+        vLiquidity = getVLiquidityForNFT(tickLower, tickUpper, liquidity);
         require(vLiquidity > 0, "INVALID Token");
 
         uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
@@ -223,7 +223,7 @@ contract Mining is Trustable {
     function collectRewards() public {
         EnumerableSet.UintSet memory ids = tokenIds[msg.sender];
         for (uint i = 0; i < ids.length(); i++) {
-           colletReward(ids.at(i));
+           collectReward(ids.at(i));
         }
     }
 
@@ -240,20 +240,20 @@ contract Mining is Trustable {
 
 
     // View function to see tokens from one user.
-    function getTokenIds(address _user) view external returns (uint[] list) {
-        uint [] list;
+    function getTokenIds(address _user) view external returns (uint[] memory tokenIdList) {
+        uint[] memory tokenIdList;
         EnumerableSet.UintSet memory ids = tokenIds[_user];
 
         for (uint i = 0; i < ids.length(); i++) {
-            list.push(ids.at(i));
+            tokenIdList.push(ids.at(i));
         }
-        return list;
+        return tokenIdList;
     }
 
 
     // View function to see pending Reward.
     function pendingReward(uint256 itemId) external view returns (uint256) {
-        TokenStatus memory t = tokenStatus[tokenId];
+        TokenStatus memory t = tokenStatus[itemId];
         _updateGlobalStatus();
         // l * (currentAcc - lastAcc)
         uint _reward = t.vLiquidity.mul((accRewardPerShare.sub(t.lastTouchAccRewardPerShare)).div(1e48));
