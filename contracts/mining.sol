@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./Trustable.sol";
-import "./interface/INonfungiblePositionManager.sol";
 
 library Math {
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -17,6 +16,30 @@ library Math {
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
     }
+}
+
+interface PositionManagerV3 {
+    function positions(uint256 tokenId)
+        external
+        view
+        returns (
+            uint96 nonce,
+            address operator,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        );
+    function safeTransferFrom(address from, address to, uint tokenId) external;
+    
+    function ownerOf(uint tokenId) external view returns (address);
+    function transferFrom(address from, address to, uint tokenId) external;
 }
 
 contract Mining is Trustable {
@@ -33,7 +56,7 @@ contract Mining is Trustable {
 
     // contract of LP erc20 token
     // TODO: to use it
-    IERC20 LPToken; 
+    IERC20 LPToken;
     // contract of reward erc20 token
     IERC20 rewardToken; 
 
@@ -41,18 +64,20 @@ contract Mining is Trustable {
     INonfungiblePositionManager uniV3NFTManager; 
 
     // the reward range of this mining contract.
-    int24 rewardUpperTick;
-    int24 rewardLowerTick;
+    int24 public rewardUpperTick;
+    int24 public rewardLowerTick;
 
     // Accumulated Reward Tokens per share, times 1e48.
     uint256 accRewardPerShare; 
     // last block number that the accRewardRerShare is touched
     uint256 lastTouchBlock;  
 
+    // reward tokens for each block
     uint256 rewardPerBlock;
+    // current total virtual Liquidity
     uint256 totalVLiquidity;
 
-    // The block number when NFT mining starts/ends.
+    // The block number when NFT mining rewards starts/ends.
     uint256 public startBlock;
     uint256 public endBlock;
 
@@ -79,6 +104,8 @@ contract Mining is Trustable {
         address _lpToken,
         address _rewardToken,
         uint256 _rewardPerBlock,
+        int24 _rewardUpperTick,
+        int24 _rewardLowerTick,
         uint _startBlock,
         uint _endBlock
     ) {
@@ -89,16 +116,20 @@ contract Mining is Trustable {
 
         rewardPerBlock = _rewardPerBlock;
 
+        rewardUpperTick = _rewardUpperTick;
+        rewardLowerTick = _rewardLowerTick;
+
         startBlock = _startBlock;
         endBlock = _endBlock;
+
         lastTouchBlock = startBlock;
         accRewardPerShare = 0;
         totalVLiquidity = 0;
     }
 
     function getVLiquidityForNFT(
-        int24 tickLower, 
-        int24 tickUpper, 
+        int24 tickLower,
+        int24 tickUpper,
         uint128 liquidity
     ) internal returns (uint256 vLiquidity) {
         vLiquidity = Math.max(Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick,tickLower), 0) * liquidity;
@@ -118,6 +149,7 @@ contract Mining is Trustable {
     function _updateVLiquidity(uint vLiquidity) internal {
         totalVLiquidity += vLiquidity;
         // TODO?
+        // add total Liquidity limit?
         // mint and send lp tokens to msg.sender
     }
 
@@ -142,6 +174,7 @@ contract Mining is Trustable {
         require(token1 == rewardPool.token1);
         require(fee == rewardPool.fee);
 
+        // require the NFT token has interaction with [rewardLowerTick, rewardUpperTick]
         vLiquidity = getAmountForNFT(tickLower, tickUpper, liquidity);
         require(vLiquidity > 0, "INVALID Token");
 
@@ -159,13 +192,13 @@ contract Mining is Trustable {
     }
 
     function withdraw(uint256 tokenId) public {
-        require(owners[tokenId] == msg.sender, "NOT OWNER");
+        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
 
         collectReward(tokenId);
         uint vLiquidity = tokenStatus[tokenId].vLiquidity;
         _updateVLiquidity(-vLiquidity);
 
-        uniV3NFTManager.safeTransferFrom(address(this), msg.sender,tokenId);
+        uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
         owners[tokenId] = address(0);
         tokenIds[msg.sender].remove(tokenId);
 
