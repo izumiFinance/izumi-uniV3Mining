@@ -117,9 +117,9 @@ contract Mining is Trustable {
         // lpToken = IERC20(_lpToken);
         rewardToken = IERC20(_rewardToken);
 
-	rewardPool.token0 = token0;
-	rewardPool.token1 = token1;
-	rewardPool.fee = fee;
+	    rewardPool.token0 = token0;
+	    rewardPool.token1 = token1;
+	    rewardPool.fee = fee;
 
         rewardPerBlock = _rewardPerBlock;
 

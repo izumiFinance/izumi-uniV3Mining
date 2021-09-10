@@ -14,6 +14,11 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 
+const secret = require('./.secret.js');
+
+const pk = secret.pk;
+const izumiRpcUrl = "http://0.0.0.0:9545";
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
@@ -29,11 +34,11 @@ module.exports = {
   },
   
   networks: {
-    test: {
-      url: "http://0.0.0.0:9545",
+    izumi_test: {
+      url: izumiRpcUrl,
       gas: 10000000,
       gasPrice: 2000000000,
-      accounts: ['00792d92886534d8153df0b5325ba974ba2af41736379ebba455208d5ac1f37a']
+      accounts: [pk]
     }
   }
 };
