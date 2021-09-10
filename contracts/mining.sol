@@ -102,7 +102,9 @@ contract Mining is Trustable {
 
     constructor(
         address _uniV3NFTManager,
-        // address _lpToken,
+        address token0,
+        address token1,
+        uint24 fee,
         address _rewardToken,
         uint256 _rewardPerBlock,
         int24 _rewardUpperTick,
@@ -114,6 +116,10 @@ contract Mining is Trustable {
 
         // lpToken = IERC20(_lpToken);
         rewardToken = IERC20(_rewardToken);
+
+	rewardPool.token0 = token0;
+	rewardPool.token1 = token1;
+	rewardPool.fee = fee;
 
         rewardPerBlock = _rewardPerBlock;
 
