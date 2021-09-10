@@ -17,7 +17,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 const secret = require('./.secret.js');
 
 const pk = secret.pk;
-const izumiRpcUrl = "http://0.0.0.0:9545";
+const izumiRpcUrl = "http://47.241.103.6:9545";
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
