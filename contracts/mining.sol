@@ -177,7 +177,7 @@ contract Mining is Trustable {
         if (isAdd) {
             totalVLiquidity = totalVLiquidity + vLiquidity;
         } else {
-            totalVLiquidity = totalVLiquidity + vLiquidity;
+            totalVLiquidity = totalVLiquidity - vLiquidity;
         }
         // TODO?
         // add total Liquidity limit?
@@ -262,7 +262,7 @@ contract Mining is Trustable {
         uint256 _reward = (t.vLiquidity *
             (accRewardPerShare - t.lastTouchAccRewardPerShare)) / 1e48;
         require(_reward > 0);
-        rewardToken.safeTransferFrom(address(this), msg.sender, _reward);
+        rewardToken.safeTransfer(msg.sender, _reward);
         _updateTokenStatus(tokenId, 0);
 
         emit CollectReward(msg.sender, tokenId, _reward);
@@ -330,10 +330,8 @@ contract Mining is Trustable {
         uint256 _reward = 0;
         for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
             TokenStatus memory t = tokenStatus[tokenIds[_user].at(i)];
-            _reward +=
-                (t.vLiquidity *
-                    (rewardPerShare - t.lastTouchAccRewardPerShare)) /
-                1e48;
+            _reward += (t.vLiquidity * 
+                (rewardPerShare - t.lastTouchAccRewardPerShare)) / 1e48;
         }
 
         return _reward;

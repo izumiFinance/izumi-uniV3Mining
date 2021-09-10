@@ -62,7 +62,8 @@ async function mingV3NFT() {
 
   // console.log(await usdc.allowance(deployer.address, managerAddress));
 
-  const parameter = { token0: USDT, token1: WETH9, fee: 3000, tickLower: -100, tickUpper: 100, amount0Desired: '100000000000000000000', amount1Desired: '100000000000000000000', amount0Min: 0, amount1Min: 0, recipient: deployer.address, deadline: '1000000000000000000000'};
+  //const parameter = { token0: USDT, token1: WETH9, fee: 3000, tickLower: -100, tickUpper: 100, amount0Desired: '100000000000000000000', amount1Desired: '100000000000000000000', amount0Min: 0, amount1Min: 0, recipient: deployer.address, deadline: '1000000000000000000000'};
+  const parameter = { token0: USDT, token1: USDC, fee: 500, tickLower: -100, tickUpper: 100, amount0Desired: '100000000000000000000', amount1Desired: '100000000000000000000', amount0Min: 0, amount1Min: 0, recipient: deployer.address, deadline: '1000000000000000000000'};
   console.log(parameter);
   const tx = await positionsManager.mint(parameter);
   console.log(tx);

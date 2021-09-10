@@ -5,12 +5,15 @@
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
 
+tokenAddr = "0x06d86063db09F46502354784ADb2af466A92Ec98";
+miningAddr = "0xEdc3aBd7B48386f4391Cd1B9755E98B8B8c85c8A";
+
 async function main() {
   const Token = await hre.ethers.getContractFactory("Token");
-  const token = await Token.attach("0xD5153592657FEd71Cda904e6a3bc1B840A720Fa4");
+  const token = await Token.attach(tokenAddr);
 
   console.log(await token.totalSupply());
-  console.log(await token.balanceOf('0xEdc3aBd7B48386f4391Cd1B9755E98B8B8c85c8A'));
+  console.log(await token.balanceOf(miningAddr));
 }
 
 // We recommend this pattern to be able to use async/await everywhere
