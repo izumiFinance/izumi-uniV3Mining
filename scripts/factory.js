@@ -37,15 +37,49 @@ async function getSlot0FromPool() {
   console.log("pool: ", poolAddress);
   const poolContract = await ethers.getContractFactory(poolJson.abi, poolJson.bytecode, deployer);
   const pool = await poolContract.attach(poolAddress);
-
+  console.log(await pool.token0(), await pool.token1());
   const slot0 = await pool.slot0();
   console.log(slot0);
   return slot0;
 }
 
+async function mingV3NFT() {
+  const [deployer] = await ethers.getSigners();
+  const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
+  const positionsManager = await positionManagerContract.attach(managerAddress);
+  
+  const tokenContract = await hre.ethers.getContractFactory("Token");
+  const usdt = await tokenContract.attach(USDT);
+
+  await usdt.approve(managerAddress, '10000000000000000000000');
+  console.log(await usdt.allowance(deployer.address, managerAddress));
+  
+  const usdc = await tokenContract.attach(USDC);
+  await usdc.approve(managerAddress, '10000000000000000000000');
+
+  const dai = await tokenContract.attach(DAI);
+  await dai.approve(managerAddress, '10000000000000000000000');
+
+  // console.log(await usdc.allowance(deployer.address, managerAddress));
+
+  const parameter = { token0: USDT, token1: WETH9, fee: 3000, tickLower: -100, tickUpper: 100, amount0Desired: '100000000000000000000', amount1Desired: '100000000000000000000', amount0Min: 0, amount1Min: 0, recipient: deployer.address, deadline: '1000000000000000000000'};
+  console.log(parameter);
+  const tx = await positionsManager.mint(parameter);
+  console.log(tx);
+}
+
+async function tokenURI() {
+  const [deployer] = await ethers.getSigners();
+  const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
+  const positionsManager = await positionManagerContract.attach(managerAddress);
+
+  const uri = await positionsManager.tokenURI(1);
+  console.log(uri);
+}
 //createPool(USDT, DAI, 500, '79228162514264337593543950336').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
 //createPool(WETH9, USDC, 3000, '4425888021996141170433613000000').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
-getPool(USDC, WETH9, 3000).then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
+// getPool(USDC, WETH9, 3000).then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
 
-// getSlot0FromPool();
-
+//getSlot0FromPool();
+mingV3NFT();
+//tokenURI();
