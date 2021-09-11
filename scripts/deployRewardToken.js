@@ -15,11 +15,6 @@ async function main() {
   await rewardToken.deployed();
   console.log(rewardToken.address);
   // We get the contract to deploy
-  const Mining = await ethers.getContractFactory("Mining");
-  const mining = await Mining.deploy(managerAddress, USDT, USDC, 500, rewardToken.address, rewardPerBlock, rewardUpperTick, rewardLowerTick, startBlock, endBlock);
-
-  await mining.deployed();
-  console.log(mining.address);
 }
 
 main()
