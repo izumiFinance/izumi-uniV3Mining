@@ -4,7 +4,10 @@ const contracts = {
 
     // uniswapV3
     nftManger: "0xC8DA14B7A7145683aE947618ceb3A0005A1E9d65",
+    nftMangerJson: "@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json",
     factory: "0xe560FE66E8F714d94e1A6aA35Ecfbd51144194EE",
+    factoryJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json",
+    poolJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json",
 
     // mining 
     miningUSDCvUSDT: "0x895d1C6dc05EC9F29440a4A8A2A6E1E087827411",
