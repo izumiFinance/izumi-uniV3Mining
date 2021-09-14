@@ -16,7 +16,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 
 const secret = require('./.secret.js');
 
-const pk = secret.pk;
+const sk = secret.sk;
 const izumiRpcUrl = "http://47.241.103.6:9545";
 
 /**
@@ -38,13 +38,13 @@ module.exports = {
       url: izumiRpcUrl,
       gas: 10000000,
       gasPrice: 2000000000,
-      accounts: [pk]
+      accounts: [sk]
     },
     rinkeby: {
       url: "https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
       gas: 10000000,
       gasPrice: 2000000000,
-      accounts: [pk]
+      accounts: [sk]
     }
   }
 };

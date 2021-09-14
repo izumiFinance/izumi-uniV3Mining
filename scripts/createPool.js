@@ -28,7 +28,7 @@ async function main() {
   //If there is no pool or pool not inited with token0 & token1, create and init one
   const tx = await manager.createAndInitializePoolIfNecessary(para.token0Address, para.token1Address, para.fee, para.priceSqrtX96);
   console.log(tx.hash);
-  console.log(tx);
+  console.log("Create pool successfully!");
 }
 
 main().then(() => process.exit(0))

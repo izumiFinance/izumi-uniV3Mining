@@ -41,7 +41,7 @@ async function main() {
   //get token1Contract
   const token1Contract = await tokenContract.attach(para.token1Address);
   //get token1 allowance
-  await token1Contract.approve(managerAddress, para,amount1Desired);
+  await token1Contract.approve(managerAddress, para.amount1Desired);
   console.log(await token1Contract.allowance(deployer.address, managerAddress));
 
   //mint nft

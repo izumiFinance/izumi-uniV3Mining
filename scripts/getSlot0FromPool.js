@@ -14,16 +14,22 @@ const para = {
 
 async function main() {
   // get pool address
-  const poolAddress = await getPool.main(para.token0Address, para.token1Address, para.fee);
+  const [deployer] = await hardhat.ethers.getSigners();
+  const poolAddress = await getPool(para.token0Address, para.token1Address, para.fee);
   console.log("pool: ", poolAddress);
 
   const poolContract = await hardhat.ethers.getContractFactory(poolJson.abi, poolJson.bytecode, deployer);
   const pool = await poolContract.attach(poolAddress);
+  console.log(pool.address);
+  
 
   // check the info of pool
-  console.log(await pool.token0(), await pool.token1());
+  const token0Info = await pool.token0();
+  console.log("aaa");
+  const token1Info = await pool.token1();
+  console.log("pool info", token0Info, token1Info);
   const slot0 = await pool.slot0();
-  console.log(slot0);
+  console.log("slot0",slot0);
   return slot0;
 }
 
