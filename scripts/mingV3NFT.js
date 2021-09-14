@@ -29,19 +29,20 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
   const positionsManager = await positionManagerContract.attach(managerAddress);
-  
+  // console.log(positionsManager);
   const tokenContract = await hre.ethers.getContractFactory("Token");
-
+  
   //get token0Contract
   const token0Contract = await tokenContract.attach(para.token0Address);
   //get token0 allowance
+  // console.log(token0Contract);
   await token0Contract.approve(managerAddress, para.amount0Desired);
   console.log(await token0Contract.allowance(deployer.address, managerAddress));
   
   //get token1Contract
   const token1Contract = await tokenContract.attach(para.token1Address);
   //get token1 allowance
-  await token1Contract.approve(managerAddress, para,amount1Desired);
+  await token1Contract.approve(managerAddress, para.amount1Desired);
   console.log(await token1Contract.allowance(deployer.address, managerAddress));
 
   //mint nft

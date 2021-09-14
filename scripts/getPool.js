@@ -22,7 +22,7 @@ async function main() {
 
   const factoryContract = await hardhat.ethers.getContractFactory(factoryJson.abi, factoryJson.bytecode, deployer);
   const factory = await factoryContract.attach(factoryAddress);
-  
+  console.log("factory: ", factory.address);
   //get the info of pool
   let pool = await factory.getPool(para.token0Address, para.token1Address, para.fee);
   console.log(pool);
@@ -33,4 +33,6 @@ main().then(() => process.exit(0))
   .catch((error) => {
     console.error(error);
     process.exit(1);
-})
+});
+
+module.exports = main;
