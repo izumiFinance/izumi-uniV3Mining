@@ -20,29 +20,32 @@ const para = {
     amount0Min: v[9],
     amount1Min: v[10],
     deadline: v[11],
+    value: v[12],
 }
 
 
 //mint uniswap v3 nft
 async function main() {
-    //attach to manager
+  for (var i in para) { console.log("    " + i + ": " + para[i]);}
+
+  //attach to manager
   const [deployer] = await ethers.getSigners();
   const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
   const positionsManager = await positionManagerContract.attach(managerAddress);
-  
+      
   const tokenContract = await hre.ethers.getContractFactory("Token");
 
   //get token0Contract
-  const token0Contract = await tokenContract.attach(para.token0Address);
+  //const token0Contract = await tokenContract.attach(para.token0Address);
   //get token0 allowance
-  await token0Contract.approve(managerAddress, para.amount0Desired);
-  console.log(await token0Contract.allowance(deployer.address, managerAddress));
+  //await token0Contract.approve(managerAddress, para.amount0Desired);
+  //console.log(await token0Contract.allowance(deployer.address, managerAddress));
   
   //get token1Contract
-  const token1Contract = await tokenContract.attach(para.token1Address);
+  //const token1Contract = await tokenContract.attach(para.token1Address);
   //get token1 allowance
-  await token1Contract.approve(managerAddress, para.amount1Desired);
-  console.log(await token1Contract.allowance(deployer.address, managerAddress));
+  //await token1Contract.approve(managerAddress, para.amount1Desired);
+  //console.log(await token1Contract.allowance(deployer.address, managerAddress));
 
   //mint nft
   const parameter = { 
@@ -57,7 +60,15 @@ async function main() {
       amount1Min: para.amount1Min, 
       recipient: deployer.address, 
       deadline: para.deadline};
-  const tx = await positionsManager.mint(parameter);
+
+  let tx;
+
+  if (para.value > 0) {
+    tx = await positionsManager.mint(parameter, {'value': para.value});
+  } else {
+    tx = await positionsManager.mint(parameter);
+  }
+
   console.log(tx);
 }
 main().then(() => process.exit(0))

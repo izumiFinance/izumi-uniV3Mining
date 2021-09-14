@@ -8,3 +8,5 @@ artifacts
 
 *.swp
 *.swc
+
+.secret.js

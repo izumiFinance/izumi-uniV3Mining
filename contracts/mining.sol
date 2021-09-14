@@ -66,9 +66,6 @@ contract Mining is Trustable {
 
     PoolInfo public rewardPool;
 
-    // contract of LP erc20 token
-    // TODO: to use it
-    IERC20 LPToken;
     // contract of reward erc20 token
     IERC20 rewardToken;
 
@@ -76,8 +73,8 @@ contract Mining is Trustable {
     PositionManagerV3 uniV3NFTManager;
 
     // the reward range of this mining contract.
-    int24 public rewardUpperTick;
-    int24 public rewardLowerTick;
+    int24 rewardUpperTick;
+    int24 rewardLowerTick;
 
     // Accumulated Reward Tokens per share, times 1e48.
     uint256 accRewardPerShare;
@@ -90,8 +87,8 @@ contract Mining is Trustable {
     uint256 totalVLiquidity;
 
     // The block number when NFT mining rewards starts/ends.
-    uint256 public startBlock;
-    uint256 public endBlock;
+    uint256 startBlock;
+    uint256 endBlock;
 
     // store the owner of the NFT token
     mapping(uint256 => address) public owners;
@@ -143,7 +140,41 @@ contract Mining is Trustable {
 
         lastTouchBlock = startBlock;
         accRewardPerShare = 0;
-        totalVLiquidity = 1; 
+        totalVLiquidity = 1;
+    }
+
+    function getMiningContractInfo()
+        external
+        view
+        returns (
+            address token0_,
+            address token1_,
+            uint24 fee_,
+            address rewardToken_,
+            int24 rewardUpperTick_,
+            int24 rewardLowerTick_,
+            uint256 accRewardPerShare_,
+            uint256 lastTouchBlock_,
+            uint256 rewardPerBlock_,
+            uint256 totalVLiquidity_,
+            uint256 startBlock_,
+            uint256 endBlock_
+        )
+    {
+        return (
+            rewardPool.token0,
+            rewardPool.token1,
+            rewardPool.fee,
+            address(rewardToken),
+            rewardUpperTick,
+            rewardLowerTick,
+            accRewardPerShare,
+            lastTouchBlock,
+            rewardPerBlock,
+            totalVLiquidity,
+            startBlock,
+            endBlock
+        );
     }
 
     function getVLiquidityForNFT(
@@ -154,12 +185,10 @@ contract Mining is Trustable {
         vLiquidity =
             uint24(
                 Math.max(
-                    Math.min(rewardUpperTick, tickUpper) -
-                        Math.max(rewardLowerTick, tickLower),
+                    Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick, tickLower),
                     0
                 )
-            ) *
-            uint256(liquidity);
+            ) * uint256(liquidity);
         return vLiquidity;
     }
 
@@ -330,8 +359,10 @@ contract Mining is Trustable {
         uint256 _reward = 0;
         for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
             TokenStatus memory t = tokenStatus[tokenIds[_user].at(i)];
-            _reward += (t.vLiquidity * 
-                (rewardPerShare - t.lastTouchAccRewardPerShare)) / 1e48;
+            _reward +=
+                (t.vLiquidity *
+                    (rewardPerShare - t.lastTouchAccRewardPerShare)) /
+                1e48;
         }
 
         return _reward;
