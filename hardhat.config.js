@@ -36,7 +36,7 @@ module.exports = {
   networks: {
     izumi_test: {
       url: izumiRpcUrl,
-      gas: 10000000,
+      gas: 5000000,
       gasPrice: 2000000000,
       accounts: [pk]
     },
