@@ -19,22 +19,17 @@ describe("Token Test", function () {
   // test the parameters of constructor
   it("Deploy Test", async function () {
     const [signer] = await hre.ethers.getSigners();
-    console.log(signer.address);
+    expect(await usdt.name()).to.equal('USDT Coin');
+    expect(await usdt.symbol()).to.equal('USDT');
     const balance = await usdt.balanceOf(signer.address);
-    console.log('balance: ', balance.toNumber());
-    expect(balance.toNumber() < 0);
-
-    // expect(await usdt.name()).to.equal('USDT Coin');
-    // expect(await usdc.name()).to.equal('USDC Coin');
-    // expect(await dai.name()).to.equal('DAI Coin');
+    expect(balance.toNumber()).to.equal(1000000000000);
   });
   
-  // test transfer function of 
-  // it("Transfer Test", async function () {
-  //   const [signer] = await hre.ethers.getSigners();
-  //   await dai.transfer('0xD4D6F030520649c7375c492D37ceb56571f768D0', 1000);
-  //   expect(await dai.balanceOf('0xD4D6F030520649c7375c492D37ceb56571f768D0')).to.equal(1000);
-  //   expect(await usdt.balanceOf(signer.address) == 1000000000000 - 1000);
-  //   console.log(await usdt.balanceOf(signer.address));
-  // });
+  // test transfer function
+  it("Transfer Test", async function () {
+    const [signer] = await hre.ethers.getSigners();
+    await usdt.transfer('0xD4D6F030520649c7375c492D37ceb56571f768D0', 1000);
+    expect(await usdt.balanceOf('0xD4D6F030520649c7375c492D37ceb56571f768D0')).to.equal(1000);
+    expect(await usdt.balanceOf(signer.address)).to.equal(1000000000000 - 1000);
+  });
 });
