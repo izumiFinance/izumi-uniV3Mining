@@ -87,7 +87,7 @@ async function deployNonfungiblePositionManager(factoryAddress, weth9Address, po
   return contract;
 }
 
-async function main() {
+async function deployUniV3() {
   const [signer] = await hre.ethers.getSigners();
 
   const weth9 = await deployWETH9(signer);
@@ -122,9 +122,13 @@ async function main() {
   };
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+// deployUniV3()
+//   .then(() => process.exit(0))
+//   .catch((error) => {
+//     console.error(error);
+//     process.exit(1);
+//   });
+
+module.exports = {
+  deployUniV3
+}
