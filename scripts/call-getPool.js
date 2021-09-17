@@ -25,7 +25,7 @@ async function main() {
   console.log("factory: ", factory.address);
   //get the info of pool
   let pool = await factory.getPool(para.token0Address, para.token1Address, para.fee);
-//   console.log(pool);
+  console.log(pool);
   return;
 }
 

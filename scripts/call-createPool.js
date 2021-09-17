@@ -14,11 +14,18 @@ const para = {
 }
 
 async function main() {
+/*
+  if (para.token0Address > para.token1Address) {
+      [para.token0Symbol, para.token1Symbol] = [para.token1Symbol, para.token0Symbol];
+      [para.token0Address, para.token1Address] = [para.token1Address, para.token0Address];
+  }
+*/
+  console.log("token0: ", para.token0Address);
+  console.log("token1: ", para.token1Address);
   // We get the signer's info
   const [deployer] = await hardhat.ethers.getSigners();
   console.log("Creating pool with the account:",
     deployer.address)
-  console.log("Account balance:", (await deployer.getBalance()).toString());
 
   const managerContract = await hardhat.ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
   const manager = await managerContract.attach(managerAddress);

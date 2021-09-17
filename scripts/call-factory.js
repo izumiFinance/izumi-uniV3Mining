@@ -4,12 +4,12 @@ const factoryJson = require("@uniswap/v3-core/artifacts/contracts/UniswapV3Facto
 const poolJson = require("@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json");
 const managerJson = require("@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json");
 
-const USDT = "0x2cc9e757dA9C89d297E78972E60837A2Cf4e8447";
-const USDC = "0xd3B76498DdB2773809A01de45dD42AfDF15B3d5C"; 
-const DAI = "0xc8e1aDaB59AFF6BF1d25655fa3670bBbf339795C";
+const USDT = "0xDa12894F72D5e302138Da6d356aAF8eD1df4d0C7";
+const USDC = "0xa5ecCB4d91d2c306a6b1f2F9820986feA80aAc8d"; 
+const DAI = "0x66Cb3A984F2B0111F5c71084023bf89b4Bc1F1e2";
 const WETH9 = "0x959a66DF1b53851e9CbdA9C7012cCc211Fb0Dc0A";
 const factoryAddress = "0xe560FE66E8F714d94e1A6aA35Ecfbd51144194EE";
-const managerAddress = "0xC8DA14B7A7145683aE947618ceb3A0005A1E9d65";
+const managerAddress = "0xC6a069A7F614B74aff311012D32A6AF0Bf5EC0c4";
 
 
 async function createPool(token0, token1, fee, priceSqrtX96) {
@@ -18,7 +18,7 @@ async function createPool(token0, token1, fee, priceSqrtX96) {
   const manager = await managerContract.attach(managerAddress);
   const tx = await manager.createAndInitializePoolIfNecessary(token0, token1, fee, priceSqrtX96);
   console.log(tx.hash);
-  console.log(tx);
+  //console.log(tx);
 }
 
 async function getPool(token0, token1, fee) {
@@ -43,21 +43,21 @@ async function getSlot0FromPool() {
   return slot0;
 }
 
-async function mingV3NFT() {
+async function mintV3NFT() {
   const [deployer] = await ethers.getSigners();
   const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
-  const positionsManager = await positionManagerContract.attach(managerAddress);
+  const positionsManager = positionManagerContract.attach(managerAddress);
   
   const tokenContract = await hre.ethers.getContractFactory("Token");
-  const usdt = await tokenContract.attach(USDT);
+  const usdt = tokenContract.attach(USDT);
 
   await usdt.approve(managerAddress, '10000000000000000000000');
   console.log(await usdt.allowance(deployer.address, managerAddress));
   
-  const usdc = await tokenContract.attach(USDC);
+  const usdc = tokenContract.attach(USDC);
   await usdc.approve(managerAddress, '10000000000000000000000');
 
-  const dai = await tokenContract.attach(DAI);
+  const dai = tokenContract.attach(DAI);
   await dai.approve(managerAddress, '10000000000000000000000');
 
   // console.log(await usdc.allowance(deployer.address, managerAddress));
@@ -72,15 +72,16 @@ async function mingV3NFT() {
 async function tokenURI() {
   const [deployer] = await ethers.getSigners();
   const positionManagerContract = await ethers.getContractFactory(managerJson.abi, managerJson.bytecode, deployer);
-  const positionsManager = await positionManagerContract.attach(managerAddress);
+  const positionsManager = positionManagerContract.attach(managerAddress);
 
   const uri = await positionsManager.tokenURI(1);
   console.log(uri);
 }
-//createPool(USDT, DAI, 500, '79228162514264337593543950336').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
-//createPool(WETH9, USDC, 3000, '4425888021996141170433613000000').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
+
+createPool(USDT, USDC, 500, '79228162514264337593543950336').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
+//createPool(USDC, WETH9, 3000, '4425888021996141170433613000000').then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
 // getPool(USDC, WETH9, 3000).then(() => process.exit(0)).catch((error) => {console.error(error); process.exit(1);})
 
 //getSlot0FromPool();
-mingV3NFT();
+//mintV3NFT();
 //tokenURI();

@@ -8,6 +8,7 @@ const v = process.argv
 const para = {
     tokenName: v[2],
     tokenSymbol: v[3],
+
 }
 
 async function main() {
