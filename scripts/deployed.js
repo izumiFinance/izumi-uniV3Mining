@@ -3,23 +3,21 @@ const contracts = {
     coinbase: "0xD4D6F030520649c7375c492D37ceb56571f768D0",
 
     // uniswapV3
-    nftManger: "0xC8DA14B7A7145683aE947618ceb3A0005A1E9d65",
+    nftManger: "0xc1E662B7D9720c10905d387F3BECefc44413E8c8",
     nftMangerJson: "@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json",
-    factory: "0xe560FE66E8F714d94e1A6aA35Ecfbd51144194EE",
+    factory: "0x7431CD000528409651332b5a074E27f5C1852207",
     factoryJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json",
     poolJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json",
 
-    // mining 
+    // mining
     miningUSDCvUSDT: "0x895d1C6dc05EC9F29440a4A8A2A6E1E087827411",
 
     // tokens
-    USDT: "0x2cc9e757dA9C89d297E78972E60837A2Cf4e8447",
-    USDC: "0xd3B76498DdB2773809A01de45dD42AfDF15B3d5C",
-    DAI: "0xc8e1aDaB59AFF6BF1d25655fa3670bBbf339795C",
-    WETH9: "0x959a66DF1b53851e9CbdA9C7012cCc211Fb0Dc0A",
-    RDT: "0x06d86063db09F46502354784ADb2af466A92Ec98",
+    USDT: "0xDa12894F72D5e302138Da6d356aAF8eD1df4d0C7",
+    USDC: "0xa5ecCB4d91d2c306a6b1f2F9820986feA80aAc8d",
+    DAI: "0x66Cb3A984F2B0111F5c71084023bf89b4Bc1F1e2",
+    WETH9: "0xd55d57a7355c623c6A2e01284B5f9a1c2B5000B7",
+    RDT: "0x5145dE92cf0A91C9f375B46962f49809b7C8486E",
 }
 
 module.exports = contracts;
-
-

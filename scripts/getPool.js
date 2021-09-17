@@ -5,6 +5,9 @@ const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;
 
 const v = process.argv
+
+//Example: HARDHAT_NETWORK='izumi_test' node getPool.js 'USDT' 'USDC' 500
+
 const para = {
     token0Symbol: v[2],
     token0Address: contracts[v[2]],
@@ -14,18 +17,17 @@ const para = {
 }
 
 async function main() {
-    // We get the signer's info
+  console.log("Paramters: ");
+  for ( var i in para) { console.log("    " + i + ": " + para[i]); }
+
   const [deployer] = await hardhat.ethers.getSigners();
-//   console.log("Creating pool with the account:",
-//     deployer.address)
-//   console.log("Account balance:", (await deployer.getBalance()).toString());
 
   const factoryContract = await hardhat.ethers.getContractFactory(factoryJson.abi, factoryJson.bytecode, deployer);
   const factory = await factoryContract.attach(factoryAddress);
   
   //get the info of pool
   let pool = await factory.getPool(para.token0Address, para.token1Address, para.fee);
-//   console.log(pool);
+  console.log('Pool: ', pool);
   return pool;
 }
 

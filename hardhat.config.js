@@ -43,7 +43,7 @@ module.exports = {
     rinkeby: {
       url: "https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
       gas: 10000000,
-      gasPrice: 2000000000,
+      gasPrice: 200000000,
       accounts: [sk]
     }
   }

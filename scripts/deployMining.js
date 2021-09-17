@@ -28,7 +28,7 @@ const para = {
 
 async function main() {
   // We get the contract to deploy
-  if (para.token0Address > para.token1Address) {
+  if (para.token0Address.toLowerCase() > para.token1Address.toLowerCase()) {
       [para.token0Symbol, para.token1Symbol] = [para.token1Symbol, para.token0Symbol];
       [para.token0Address, para.token1Address] = [para.token1Address, para.token0Address];
   }
