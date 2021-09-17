@@ -11,6 +11,13 @@ Find more at [Guide for Hardhat Scripts](https://hardhat.org/guides/scripts.html
 $ HARDHAT_NETWORK='CUSTOM_NETWORK' node scripts/THE_SCRIPTS.js argv[0] argv[1] ...
 ```
 
+or if you want to input a list of commands on one network.
+
+```shell
+$ export HARDHAT_NETWORK='CUSTOM_NETWORK'
+$ node scripts/THE_SCRIPTS.js argv[0] argv[1] ...
+```
+
 If no argvs are passed, run the follows alternatively.
 ```shell
 $ npx hardhat run scripts/THE_SCRIPTS.js --network CUSTOM_NETWORK
