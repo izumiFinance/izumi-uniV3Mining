@@ -154,6 +154,7 @@ contract Mining is Trustable {
         totalVLiquidity = 1;
     }
 
+    /// @notice Get the overall info for the mining contract.
     function getMiningContractInfo()
         external
         view
@@ -292,7 +293,7 @@ contract Mining is Trustable {
 
         // require the NFT token has interaction with [rewardLowerTick, rewardUpperTick]
         vLiquidity = _getVLiquidityForNFT(tickLower, tickUpper, liquidity);
-        require(vLiquidity > 0, "INVALID Token");
+        require(vLiquidity > 0, "INVALID TOKEN");
 
         uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
         owners[tokenId] = msg.sender;
@@ -310,7 +311,7 @@ contract Mining is Trustable {
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
     function withdraw(uint256 tokenId) public {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
+        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
         uint256 vLiquidity = tokenStatus[tokenId].vLiquidity;
@@ -409,7 +410,7 @@ contract Mining is Trustable {
     }
 
     /// @notice Set new reward per block.
-    /// @param _rewardPerBlock New reward per block.
+    /// @param _rewardPerBlock New end block.
     function modifyRewardPerBlock(uint _rewardPerBlock) external onlyTrusted {
         _updateGlobalStatus();
         rewardPerBlock = _rewardPerBlock;
