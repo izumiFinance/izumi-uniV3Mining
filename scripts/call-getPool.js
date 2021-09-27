@@ -1,6 +1,6 @@
 const hardhat = require("hardhat");
 const { modules } = require("web3");
-const contracts = require("./deployed.js");
+const contracts = require("./deployed.json");
 const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;
 
@@ -13,7 +13,7 @@ const para = {
     fee: v[4],
 }
 
-async function main() {
+async function getPool(token0Address, token1Address, fee) {
     // We get the signer's info
   const [deployer] = await hardhat.ethers.getSigners();
 //   console.log("Creating pool with the account:",
@@ -22,17 +22,16 @@ async function main() {
 
   const factoryContract = await hardhat.ethers.getContractFactory(factoryJson.abi, factoryJson.bytecode, deployer);
   const factory = await factoryContract.attach(factoryAddress);
-  console.log("factory: ", factory.address);
   //get the info of pool
-  let pool = await factory.getPool(para.token0Address, para.token1Address, para.fee);
+  let pool = await factory.getPool(token0Address, token1Address, fee);
   console.log(pool);
   return;
 }
 
-main().then(() => process.exit(0))
+getPool(para.token0Address, para.token1Address, para.fee).then(() => process.exit(0))
   .catch((error) => {
     console.error(error);
     process.exit(1);
 })
 
-module.exports = main;
+module.exports = getPool;

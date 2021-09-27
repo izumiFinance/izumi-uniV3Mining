@@ -5,64 +5,64 @@ const { Signer, Contract, ContractFactory } = require("ethers");
 const hre = require("hardhat");
 const { WETH9 } = require("../util/WETH9.json");
 const { linkLibraries } = require("../util/linkLibraries.js"); 
-const fs = require('fs');
+const {readJson, writeJson} = require("../util/common.js");
 
 const artifacts = {                                                                                                                        
-  UniswapV3Factory: require("@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json"),                                                              
-  SwapRouter: require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json"),                                                                           
-  NFTDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/libraries/NFTDescriptor.sol/NFTDescriptor.json"),                                                        
-  NonfungibleTokenPositionDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/NonfungibleTokenPositionDescriptor.sol/NonfungibleTokenPositionDescriptor.json"),   
-  NonfungiblePositionManager: require("@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json"),                           
-  WETH9,
+    UniswapV3Factory: require("@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json"),
+    SwapRouter: require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json"),
+    NFTDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/libraries/NFTDescriptor.sol/NFTDescriptor.json"),
+    NonfungibleTokenPositionDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/NonfungibleTokenPositionDescriptor.sol/NonfungibleTokenPositionDescriptor.json"),
+    NonfungiblePositionManager: require("@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json"),
+    WETH9,
 };
 
 // deploy weth9 contract using abi and bytecode from "../util/WETH9.json"
 async function deployWETH9(signer) {
-  const ContractFactory = await ethers.getContractFactory(artifacts.WETH9.abi, artifacts.WETH9.bytecode, signer);
-  const contract = await ContractFactory.deploy();
+    const ContractFactory = await ethers.getContractFactory(artifacts.WETH9.abi, artifacts.WETH9.bytecode, signer);
+    const contract = await ContractFactory.deploy();
 
-  await contract.deployed();
-  return contract;
+    await contract.deployed();
+    return contract;
 }
 
 // deploy factory contract
 async function deployFactory(signer) {
-  const ContractFactory = await ethers.getContractFactory(artifacts.UniswapV3Factory.abi, artifacts.UniswapV3Factory.bytecode, signer);
-  const contract = await ContractFactory.deploy();
+    const ContractFactory = await ethers.getContractFactory(artifacts.UniswapV3Factory.abi, artifacts.UniswapV3Factory.bytecode, signer);
+    const contract = await ContractFactory.deploy();
 
-  await contract.deployed();
-  return contract;
+    await contract.deployed();
+    return contract;
 }
 
 // deploy router contract
 async function deployRouter(factoryAddress, weth9Address, signer) {
-  const ContractFactory = await ethers.getContractFactory(artifacts.SwapRouter.abi, artifacts.SwapRouter.bytecode, signer);
-  const contract = await ContractFactory.deploy(factoryAddress, weth9Address);
+    const ContractFactory = await ethers.getContractFactory(artifacts.SwapRouter.abi, artifacts.SwapRouter.bytecode, signer);
+    const contract = await ContractFactory.deploy(factoryAddress, weth9Address);
 
-  await contract.deployed();
-  return contract;
+    await contract.deployed();
+    return contract;
 }
 
 // deploy nftDescriptorLibrary contract
 async function deployNFTDescriptorLibrary(signer) {
-  const ContractFactory = await ethers.getContractFactory(artifacts.NFTDescriptor.abi, artifacts.NFTDescriptor.bytecode, signer);
-  const contract = await ContractFactory.deploy();
+    const ContractFactory = await ethers.getContractFactory(artifacts.NFTDescriptor.abi, artifacts.NFTDescriptor.bytecode, signer);
+    const contract = await ContractFactory.deploy();
 
-  await contract.deployed();
-  return contract;
+    await contract.deployed();
+    return contract;
 }
 
 // deploy positionDescriptor contract
 async function deployPositionDescriptor(nftDescriptorLibraryAddress, weth9Address, signer) {
-  const linkedBytecode = linkLibraries(
+    const linkedBytecode = linkLibraries(
     {                      
-      bytecode: artifacts.NonfungibleTokenPositionDescriptor.bytecode,
-      linkReferences: {
-        "NFTDescriptor.sol": {                                                      
-          NFTDescriptor: [                                                          
+        bytecode: artifacts.NonfungibleTokenPositionDescriptor.bytecode,
+        linkReferences: {
+            "NFTDescriptor.sol": {                                                      
+            NFTDescriptor: [                                                          
             {
-              length: 20,
-              start: 1261,                                                                                                                                                 
+                length: 20,
+                start: 1261,                                                                                      
             },
           ],
         },
@@ -106,22 +106,23 @@ async function deployUniV3() {
     positionDescriptor.address,
     signer
   );
+
   console.log("weth9: ", weth9.address);
   console.log("factory: ", factory.address);
   console.log("router: ", router.address);
   console.log("nftDescriptorLibrary: ", nftDescriptorLibrary.address);
   console.log("positionDescriptor: ", positionDescriptor.address);
   console.log("positionManager: ", positionManager.address);
-  let deployed = {
-    'weth9': weth9.address,
-    'factory': factory.address,
-    'router': router.address,
-    'nftDescriptorLibrary': nftDescriptorLibrary.address,
-    'positionDescriptor': positionDescriptor.address,
-    'positionManager': positionManager.address
-  }
-  let data = JSON.stringify(deployed, null, 2);
-  fs.writeFileSync('deployed.json', data);
+  let contracts = {
+        "weth9": weth9.address,
+        "factory": factory.address,
+        "router": router.address,
+        "nftDescriptorLibrary": nftDescriptorLibrary.address,
+        "positionDescriptor": positionDescriptor.address,
+        "positionManager": positionManager.address
+  };
+    writeJson(contracts);
+
   return {
     weth9,
     factory,

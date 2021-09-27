@@ -26,7 +26,7 @@ const para = {
 }
 
 
-async function main() {
+async function () {
   // We get the contract to deploy
   if (para.token0Address > para.token1Address) {
       [para.token0Symbol, para.token1Symbol] = [para.token1Symbol, para.token0Symbol];
@@ -53,7 +53,6 @@ async function main() {
   );
   await mining.deployed();
   console.log("Mining Contract Address: " , mining.address);
-
 }
 
 main()

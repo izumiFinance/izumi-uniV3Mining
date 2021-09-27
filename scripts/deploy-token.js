@@ -1,4 +1,5 @@
 const hardhat = require("hardhat");
+const fs = require('fs');
 
 //Example:
 //HARDHAT_NETWORK='izumi_test' node deployToken.js "Dai Stable Coin" "DAI"
@@ -8,7 +9,6 @@ const v = process.argv
 const para = {
     tokenName: v[2],
     tokenSymbol: v[3],
-
 }
 
 async function main() {
@@ -25,6 +25,13 @@ async function main() {
 
   console.log("Token Deployed Address:", token.address);
   
+  let rawdata = fs.readFileSync('deployed.json');
+  let deployedContracts = JSON.parse(rawdata);
+
+  deployedContracts[para.tokenSymbol] = token.address;
+  
+  let data = JSON.stringify(deployedContracts, null, 2);
+  fs.writeFileSync('deployed.json', data);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
