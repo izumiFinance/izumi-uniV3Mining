@@ -4,8 +4,7 @@ const managerAddress = contracts.nftManger;
 
 
 // example
-// HARDHAT_NETWORK='izumi_test' node deployMining.js 'USDT' 'USDC' 500 '10000000000000000000' 50000 0 0 1000000  'RDT'
-// HARDHAT_NETWORK='izumi_test' node deployMining.js 'WETH9' 'USDT' 3000 '10000000000000000000' 69100 85000 0 1000000  'RDT'
+// HARDHAT_NETWORK='izumi_test' node deployMining2Rewards.js 'WETH9' 'USDC' 3000 '10000000000000000000' '1000000000000000000' 90000 70000 0 1000000  'RDT' 'RDT2'
 // 
 //
 const v = process.argv
@@ -17,13 +16,16 @@ const para = {
     token1Symbol: v[3],
     token1Address: contracts[v[3]],
     fee: v[4],
-    rewardPerBlock: v[5],
-    rewardUpperTick: v[6],
-    rewardLowerTick: v[7],
-    startBlock: v[8],
-    endBlock: v[9],
-    rewardTokenSymbol: v[10],
-    rewardTokenAddress: contracts[v[10]],
+    rewardPerBlock0: v[5],
+    rewardPerBlock1: v[6],
+    rewardUpperTick: v[7],
+    rewardLowerTick: v[8],
+    startBlock: v[9],
+    endBlock: v[10],
+    rewardTokenSymbol0: v[11],
+    rewardTokenSymbol1: v[12],
+    rewardTokenAddress0: contracts[v[11]],
+    rewardTokenAddress1: contracts[v[12]],
 }
 
 
@@ -35,10 +37,10 @@ async function main() {
       [para.rewardUpperTick, para.rewardLowerTick] = [-para.rewardLowerTick, -para.rewardUpperTick];
   }
 
-  console.log("Deploy Minging Contract: %s/%s", para.token0Symbol,  para.token1Symbol);
+  console.log("Deploy Minging2Rewards Contract: %s/%s", para.token0Symbol,  para.token1Symbol);
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("Mining");
+  const Mining = await hardhat.ethers.getContractFactory("Mining2R");
 
   console.log("Deploying .....")
   const mining = await Mining.deploy(
@@ -46,8 +48,10 @@ async function main() {
     para.token0Address, 
     para.token1Address, 
     para.fee, 
-    para.rewardTokenAddress, 
-    para.rewardPerBlock, 
+    para.rewardTokenAddress0, 
+    para.rewardTokenAddress1, 
+    para.rewardPerBlock0, 
+    para.rewardPerBlock1, 
     para.rewardUpperTick, 
     para.rewardLowerTick, 
     para.startBlock, 
