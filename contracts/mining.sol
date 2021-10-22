@@ -1,5 +1,5 @@
 //  SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity 0.8.4;
 
 // Uncomment if needed.
 // import "hardhat/console.sol";
@@ -119,6 +119,8 @@ contract Mining is Trustable, Multicall {
     event Deposit(address indexed user, uint256 tokenId);
     event Withdraw(address indexed user, uint256 tokenId);
     event CollectReward(address indexed user, uint256 tokenId, uint256 amount);
+    event ModifyEndBlock(uint256 endBlock);
+    event ModifyRewardPerBlock(uint256 rewardPerBlock);
 
     constructor(
         address _uniV3NFTManager,
@@ -268,7 +270,7 @@ contract Mining is Trustable, Multicall {
 
     /// @notice Deposit a single position.
     /// @param tokenId The related position id.
-    function deposit(uint256 tokenId) public returns (uint256 vLiquidity) {
+    function deposit(uint256 tokenId) external returns (uint256 vLiquidity) {
         address owner = uniV3NFTManager.ownerOf(tokenId);
         require(owner == msg.sender, "NOT OWNER");
 
@@ -298,7 +300,8 @@ contract Mining is Trustable, Multicall {
 
         uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
         owners[tokenId] = msg.sender;
-        tokenIds[msg.sender].add(tokenId);
+        bool res = tokenIds[msg.sender].add(tokenId);
+        require(res);
 
         // the execution order for the next three lines is crutial
         _updateGlobalStatus();
@@ -311,7 +314,7 @@ contract Mining is Trustable, Multicall {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) public {
+    function withdraw(uint256 tokenId) external {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
@@ -320,7 +323,8 @@ contract Mining is Trustable, Multicall {
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
         owners[tokenId] = address(0);
-        tokenIds[msg.sender].remove(tokenId);
+        bool res = tokenIds[msg.sender].remove(tokenId);
+        require(res);
 
         emit Withdraw(msg.sender, tokenId);
     }
@@ -335,7 +339,7 @@ contract Mining is Trustable, Multicall {
 
         // l * (currentAcc - lastAcc)
         uint256 _reward = (t.vLiquidity * (accRewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
-        require(_reward > 0);
+        require(_reward > 0, "NO REWARD");
         rewardToken.safeTransfer(msg.sender, _reward);
         _updateTokenStatus(tokenId, 0);
 
@@ -343,7 +347,7 @@ contract Mining is Trustable, Multicall {
     }
 
     /// @notice Collect all pending rewards.
-    function collectRewards() public {
+    function collectRewards() external {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
             collectReward(ids.at(i));
@@ -408,6 +412,7 @@ contract Mining is Trustable, Multicall {
     function modifyEndBlock(uint256 _endBlock) external onlyTrusted {
         _updateGlobalStatus();
         endBlock = _endBlock;
+        emit ModifyEndBlock(endBlock);
     }
 
     /// @notice Set new reward per block.
@@ -415,6 +420,7 @@ contract Mining is Trustable, Multicall {
     function modifyRewardPerBlock(uint _rewardPerBlock) external onlyTrusted {
         _updateGlobalStatus();
         rewardPerBlock = _rewardPerBlock;
+        emit ModifyRewardPerBlock(rewardPerBlock);
     }
 
 }
