@@ -32,8 +32,12 @@ async function main() {
 
   // We get the contract to deploy
   if (para.token0Address.toLowerCase() > para.token1Address.toLowerCase()) {
-	console.log("The tokens are not correctly ordered, pleace check...")
-	return 
+	//console.log("The tokens are not correctly ordered, pleace check...")
+    [para.token0Symbol, para.token1Symbol] = [para.token1Symbol, para.token0Symbol];
+    [para.token0Address, para.token1Address] = [para.token1Address, para.token0Address];
+    [para.upperTick, para.lowerTick] = [-para.lowerTick, -para.upperTick];
+    [para.amount0Desired, para.amount1Desired] = [para.amount1Desired, para.amount0Desired];
+    [para.amount0Min, para.amount1Min] = [para.amount1Min, para.amount0Min];
   }
   console.log("Mining NFT parameter: ")
   for (var i in para) { console.log("    " + i + ": " + para[i]);}
