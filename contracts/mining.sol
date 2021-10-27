@@ -7,8 +7,10 @@ pragma solidity 0.8.4;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./trustable.sol";
+
 import "./multicall.sol";
 
 /// @title Simple math library for Max and Min.
@@ -58,7 +60,7 @@ interface PositionManagerV3 {
 }
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract Mining is Trustable, Multicall {
+contract Mining is Ownable, Multicall, ReentrancyGuard {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -314,7 +316,7 @@ contract Mining is Trustable, Multicall {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) external {
+    function withdraw(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
@@ -331,7 +333,7 @@ contract Mining is Trustable, Multicall {
 
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
-    function collectReward(uint256 tokenId) public {
+    function collectReward(uint256 tokenId) public nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         TokenStatus memory t = tokenStatus[tokenId];
 
@@ -339,8 +341,9 @@ contract Mining is Trustable, Multicall {
 
         // l * (currentAcc - lastAcc)
         uint256 _reward = (t.vLiquidity * (accRewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
-        require(_reward > 0, "NO REWARD");
-        rewardToken.safeTransfer(msg.sender, _reward);
+        if (_reward > 0) {
+            rewardToken.safeTransfer(msg.sender, _reward);
+        }
         _updateTokenStatus(tokenId, 0);
 
         emit CollectReward(msg.sender, tokenId, _reward);
@@ -353,7 +356,6 @@ contract Mining is Trustable, Multicall {
             collectReward(ids.at(i));
         }
     }
-
 
     /// @notice View function to get position ids staked here for an user.
     /// @param _user The related address.
@@ -403,13 +405,13 @@ contract Mining is Trustable, Multicall {
 
     /// @notice If something goes wrong, we can send back user's nft.
     /// @param tokenId The related position id.
-    function emergenceWithdraw(uint256 tokenId) external onlyTrusted {
+    function emergenceWithdraw(uint256 tokenId) external onlyOwner {
         uniV3NFTManager.safeTransferFrom(address(this), owners[tokenId], tokenId);
     }
 
     /// @notice Set new reward end block.
     /// @param _endBlock New end block.
-    function modifyEndBlock(uint256 _endBlock) external onlyTrusted {
+    function modifyEndBlock(uint256 _endBlock) external onlyOwner {
         _updateGlobalStatus();
         endBlock = _endBlock;
         emit ModifyEndBlock(endBlock);
@@ -417,7 +419,7 @@ contract Mining is Trustable, Multicall {
 
     /// @notice Set new reward per block.
     /// @param _rewardPerBlock New end block.
-    function modifyRewardPerBlock(uint _rewardPerBlock) external onlyTrusted {
+    function modifyRewardPerBlock(uint _rewardPerBlock) external onlyOwner {
         _updateGlobalStatus();
         rewardPerBlock = _rewardPerBlock;
         emit ModifyRewardPerBlock(rewardPerBlock);
