@@ -123,6 +123,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     // Events
     event Deposit(address indexed user, uint256 tokenId);
     event Withdraw(address indexed user, uint256 tokenId);
+    event WithdrawNoReward(address indexed user, uint256 tokenId);
     event CollectReward(address indexed user, uint256 tokenId, address rewardToken, uint256 amount);
 
     constructor(
@@ -352,10 +353,10 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
         uint256 _reward1 = (t.vLiquidity * (accRewardPerShare1 - t.lastTouchAccRewardPerShare1)) / Q128;
         // require(_reward0 > 0 || _reward1 >0 );
         if (_reward0 > 0) {
-            rewardToken0.safeTransfer(msg.sender, _reward0);
+            rewardToken0.safeTransferFrom(owner(), msg.sender, _reward0);
         }
         if (_reward1 > 0) {
-            rewardToken1.safeTransfer(msg.sender, _reward1);
+            rewardToken1.safeTransferFrom(owner(), msg.sender, _reward1);
         }
         _updateTokenStatus(tokenId, 0);
 
@@ -431,7 +432,27 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
         return (_reward0, _reward1);
     }
 
-    // Control fuctions for the contract owner and operators.
+    /// @notice Widthdraw a single position without claiming rewards.
+    /// @param tokenId The related position id.
+    function withdrawNoReward(uint256 tokenId) public nonReentrant {
+        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
+
+        // The collecting procedure is commenced out.
+        // collectReward(tokenId);
+        // The global status needs update since the vLiquidity is changed after withdraw.
+        _updateGlobalStatus();
+
+        uint256 vLiquidity = tokenStatus[tokenId].vLiquidity;
+        _updateVLiquidity(vLiquidity, false);
+
+        uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
+        owners[tokenId] = address(0);
+        tokenIds[msg.sender].remove(tokenId);
+
+        emit WithdrawNoReward(msg.sender, tokenId);
+    }
+
+    // Control fuctions for the contract owner.
 
     /// @notice If something goes wrong, we can send back user's nft.
     /// @param tokenId The related position id.
