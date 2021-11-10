@@ -120,6 +120,7 @@ contract Mining is Ownable, Multicall, ReentrancyGuard {
     // Events
     event Deposit(address indexed user, uint256 tokenId);
     event Withdraw(address indexed user, uint256 tokenId);
+    event WithdrawNoReward(address indexed user, uint256 tokenId);
     event CollectReward(address indexed user, uint256 tokenId, uint256 amount);
     event ModifyEndBlock(uint256 endBlock);
     event ModifyRewardPerBlock(uint256 rewardPerBlock);
@@ -316,7 +317,7 @@ contract Mining is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) external nonReentrant {
+    function withdraw(uint256 tokenId) external {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
@@ -342,7 +343,7 @@ contract Mining is Ownable, Multicall, ReentrancyGuard {
         // l * (currentAcc - lastAcc)
         uint256 _reward = (t.vLiquidity * (accRewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
         if (_reward > 0) {
-            rewardToken.safeTransfer(msg.sender, _reward);
+            rewardToken.safeTransferFrom(owner(), msg.sender, _reward);
         }
         _updateTokenStatus(tokenId, 0);
 
@@ -400,6 +401,27 @@ contract Mining is Ownable, Multicall, ReentrancyGuard {
         }
         return _reward;
     }
+
+    /// @notice Widthdraw a single position without claiming rewards.
+    /// @param tokenId The related position id.
+    function withdrawNoReward(uint256 tokenId) public {
+        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
+
+        // The collecting procedure is commenced out.
+        // collectReward(tokenId);
+        // The global status needs update since the vLiquidity is changed after withdraw.
+        _updateGlobalStatus();
+
+        uint256 vLiquidity = tokenStatus[tokenId].vLiquidity;
+        _updateVLiquidity(vLiquidity, false);
+
+        uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
+        owners[tokenId] = address(0);
+        tokenIds[msg.sender].remove(tokenId);
+
+        emit WithdrawNoReward(msg.sender, tokenId);
+    }
+
 
     // Control fuctions for the contract owner and operators.
 

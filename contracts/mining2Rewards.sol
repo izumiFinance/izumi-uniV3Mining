@@ -326,7 +326,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) public nonReentrant {
+    function withdraw(uint256 tokenId) public {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
@@ -434,7 +434,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Widthdraw a single position without claiming rewards.
     /// @param tokenId The related position id.
-    function withdrawNoReward(uint256 tokenId) public nonReentrant {
+    function withdrawNoReward(uint256 tokenId) public {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         // The collecting procedure is commenced out.
