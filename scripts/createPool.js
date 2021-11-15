@@ -4,11 +4,13 @@ const managerJson = require(contracts.nftMangerJson);
 const managerAddress = contracts.nftManger;
 
 const v = process.argv
+const net = process.env.HARDHAT_NETWORK
+
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     token1Symbol: v[3],
-    token1Address: contracts[v[3]],
+    token1Address: contracts[net][v[3]],
     fee: v[4],
     priceSqrtX96: v[5],
 }

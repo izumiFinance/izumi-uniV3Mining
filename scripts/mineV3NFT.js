@@ -5,15 +5,16 @@ const managerJson = require(contracts.nftMangerJson);
 const managerAddress = contracts.nftManger;
 
 const v = process.argv
+const net = process.env.HARDHAT_NETWORK
 
 
-// Example: HARDHAT_NETWORK='izumi_test' node mingV3NFT.js 'USDT' 'WETH9' 3000 120 -120 "10000000000" "10000000000" 0 0 10000000000000000 10000000000 1
+// Example: HARDHAT_NETWORK='izumiTest' node mingV3NFT.js 'USDT' 'WETH9' 3000 120 -120 "10000000000" "10000000000" 0 0 10000000000000000 10000000000 1
 
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     token1Symbol: v[3],
-    token1Address: contracts[v[3]],
+    token1Address: contracts[net][v[3]],
     fee: v[4],
     upperTick: v[5],
     lowerTick: v[6],

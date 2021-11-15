@@ -32,9 +32,9 @@ module.exports = {
       }
     }
   },
-  
+
   networks: {
-    izumi_test: {
+    izumiTest: {
       url: izumiRpcUrl,
       gas: 8000000,
       gasPrice: 2000000000,
@@ -46,5 +46,11 @@ module.exports = {
       gasPrice: 200000000,
       accounts: [sk]
     }
+  },
+  ethereum:{
+      url: "",
+      gas: 1,
+      gasPrice: 1,
+      accounts: [sk]
   }
 };

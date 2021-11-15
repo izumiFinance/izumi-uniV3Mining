@@ -4,18 +4,18 @@ const managerAddress = contracts.nftManger;
 
 
 // example
-// HARDHAT_NETWORK='izumi_test' node deployMining.js 'USDT' 'USDC' 500 '10000000000000000000' 50000 0 0 1000000  'RDT'
-// HARDHAT_NETWORK='izumi_test' node deployMining.js 'WETH9' 'USDT' 3000 '10000000000000000000' 69100 85000 0 1000000  'RDT'
+// HARDHAT_NETWORK='izumiTest' node deployMining.js 'USDT' 'USDC' 500 '10000000000000000000' 50000 0 0 1000000  'RDT'
+// HARDHAT_NETWORK='izumiTest' node deployMining.js 'WETH9' 'USDT' 3000 '10000000000000000000' 69100 85000 0 1000000  'RDT'
 // 
 //
 const v = process.argv
-
+const net = process.env.HARDHAT_NETWORK
 
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     token1Symbol: v[3],
-    token1Address: contracts[v[3]],
+    token1Address: contracts[net][v[3]],
     fee: v[4],
     rewardPerBlock: v[5],
     rewardUpperTick: v[6],
@@ -23,7 +23,7 @@ const para = {
     startBlock: v[8],
     endBlock: v[9],
     rewardTokenSymbol: v[10],
-    rewardTokenAddress: contracts[v[10]],
+    rewardTokenAddress: contracts[net][v[10]],
 }
 
 

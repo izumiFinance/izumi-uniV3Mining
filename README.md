@@ -1,10 +1,24 @@
 # Izumi-contracts-UniswapV3Mining
 
-The contracts to mine uniswap V3 NFT token
 
+<div align="center">
+  <a href="https://izumi.finance"> 
+    <img width="450px" height="auto" 
+    src="image/logo.png">
+  </a>
+</div>
 
-# Scripts
+Contracts to mine uniswap V3 NFT token
+
+# Designs:
+
+### Model1: mining with fixed price range.
+
+### Model2: mining with no-impermanent loss.
+
+# Scripts:
 Each script runs some specific tasks. Run a script with the following command line. 
+
 Find more at [Guide for Hardhat Scripts](https://hardhat.org/guides/scripts.html').
 
 ```shell

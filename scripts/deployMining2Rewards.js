@@ -8,13 +8,14 @@ const managerAddress = contracts.nftManger;
 // 
 //
 const v = process.argv
+const net = process.env.HARDHAT_NETWORK
 
 
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     token1Symbol: v[3],
-    token1Address: contracts[v[3]],
+    token1Address: contracts[net][v[3]],
     fee: v[4],
     rewardPerBlock0: v[5],
     rewardPerBlock1: v[6],
@@ -24,8 +25,8 @@ const para = {
     endBlock: v[10],
     rewardTokenSymbol0: v[11],
     rewardTokenSymbol1: v[12],
-    rewardTokenAddress0: contracts[v[11]],
-    rewardTokenAddress1: contracts[v[12]],
+    rewardTokenAddress0: contracts[net][v[11]],
+    rewardTokenAddress1: contracts[net][v[12]],
 }
 
 

@@ -5,14 +5,15 @@ const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;
 
 const v = process.argv
+const net = process.env.HARDHAT_NETWORK
 
-//Example: HARDHAT_NETWORK='izumi_test' node getPool.js 'USDT' 'USDC' 500
+//Example: HARDHAT_NETWORK='izumiTest' node getPool.js 'USDT' 'USDC' 500
 
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     token1Symbol: v[3],
-    token1Address: contracts[v[3]],
+    token1Address: contracts[net][v[3]],
     fee: v[4],
 }
 

@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./multicall.sol";
+import "../multicall.sol";
 
 /// @title Simple math library for Max and Min.
 library Math {
@@ -59,7 +59,7 @@ interface PositionManagerV3 {
 }
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract Mining2R is Ownable, Multicall, ReentrancyGuard {
+contract Mining is Ownable, Multicall, ReentrancyGuard {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -73,8 +73,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     PoolInfo public rewardPool;
 
     /// @dev Contract of the reward erc20 token.
-    IERC20 rewardToken0;
-    IERC20 rewardToken1;
+    IERC20 rewardToken;
 
     /// @dev Contract of the uniV3 Nonfungible Position Manager.
     PositionManagerV3 uniV3NFTManager;
@@ -84,15 +83,13 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     int24 rewardLowerTick;
 
     /// @dev Accumulated Reward Tokens per share, times 1e128.
-    uint256 public accRewardPerShare0;
-    uint256 public accRewardPerShare1;
+    uint256 accRewardPerShare;
     
     /// @dev Last block number that the accRewardRerShare is touched.
     uint256 lastTouchBlock;
 
     /// @dev Reward amount for each block.
-    uint256 rewardPerBlock0;
-    uint256 rewardPerBlock1;
+    uint256 rewardPerBlock;
 
     /// @dev Current total virtual liquidity.
     uint256 totalVLiquidity;
@@ -110,8 +107,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     struct TokenStatus {
         uint256 vLiquidity;
         uint256 lastTouchBlock;
-        uint256 lastTouchAccRewardPerShare0;
-        uint256 lastTouchAccRewardPerShare1;
+        uint256 lastTouchAccRewardPerShare;
     }
 
     mapping(uint256 => TokenStatus) tokenStatus;
@@ -124,17 +120,17 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     event Deposit(address indexed user, uint256 tokenId);
     event Withdraw(address indexed user, uint256 tokenId);
     event WithdrawNoReward(address indexed user, uint256 tokenId);
-    event CollectReward(address indexed user, uint256 tokenId, address rewardToken, uint256 amount);
+    event CollectReward(address indexed user, uint256 tokenId, uint256 amount);
+    event ModifyEndBlock(uint256 endBlock);
+    event ModifyRewardPerBlock(uint256 rewardPerBlock);
 
     constructor(
         address _uniV3NFTManager,
         address token0,
         address token1,
         uint24 fee,
-        address _rewardToken0,
-        address _rewardToken1,
-        uint256 _rewardPerBlock0,
-        uint256 _rewardPerBlock1,
+        address _rewardToken,
+        uint256 _rewardPerBlock,
         int24 _rewardUpperTick,
         int24 _rewardLowerTick,
         uint256 _startBlock,
@@ -142,16 +138,14 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     ) {
         uniV3NFTManager = PositionManagerV3(_uniV3NFTManager);
 
-        rewardToken0 = IERC20(_rewardToken0);
-        rewardToken1 = IERC20(_rewardToken1);
+        rewardToken = IERC20(_rewardToken);
 
         require(token0 < token1, "TOKEN0 < TOKEN1 NOT MATCH");
         rewardPool.token0 = token0;
         rewardPool.token1 = token1;
         rewardPool.fee = fee;
 
-        rewardPerBlock0 = _rewardPerBlock0;
-        rewardPerBlock1 = _rewardPerBlock1;
+        rewardPerBlock = _rewardPerBlock;
 
         rewardUpperTick = _rewardUpperTick;
         rewardLowerTick = _rewardLowerTick;
@@ -160,9 +154,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
         endBlock = _endBlock;
 
         lastTouchBlock = startBlock;
-        accRewardPerShare0 = 0;
-        accRewardPerShare1 = 0;
-
+        accRewardPerShare = 0;
         // set 1 as the initial value to prevent the divided by zero error.
         totalVLiquidity = 1;
     }
@@ -175,12 +167,12 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
             address token0_,
             address token1_,
             uint24 fee_,
-            address rewardToken0_,
-            address rewardToken1_,
+            address rewardToken_,
             int24 rewardUpperTick_,
             int24 rewardLowerTick_,
-            uint256 rewardPerBlock0_,
-            uint256 rewardPerBlock1_,
+            uint256 accRewardPerShare_,
+            uint256 lastTouchBlock_,
+            uint256 rewardPerBlock_,
             uint256 totalVLiquidity_,
             uint256 startBlock_,
             uint256 endBlock_
@@ -190,12 +182,12 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
             rewardPool.token0,
             rewardPool.token1,
             rewardPool.fee,
-            address(rewardToken0),
-            address(rewardToken1),
+            address(rewardToken),
             rewardUpperTick,
             rewardLowerTick,
-            rewardPerBlock0,
-            rewardPerBlock1,
+            accRewardPerShare,
+            lastTouchBlock,
+            rewardPerBlock,
             totalVLiquidity,
             startBlock,
             endBlock
@@ -233,8 +225,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
             t.vLiquidity = vLiquidity;
         }
         t.lastTouchBlock = lastTouchBlock;
-        t.lastTouchAccRewardPerShare0 = accRewardPerShare0;
-        t.lastTouchAccRewardPerShare1 = accRewardPerShare1;
+        t.lastTouchAccRewardPerShare = accRewardPerShare;
     }
 
     /// @notice Update reward variables to be up-to-date.
@@ -257,10 +248,8 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
         // acc(T) = acc(T-N) + N * R * 1 / sum(L)
         uint256 multiplier = _getMultiplier(lastTouchBlock, block.number);
-        uint256 tokenReward0 = multiplier * rewardPerBlock0;
-        accRewardPerShare0 = accRewardPerShare0 + ((tokenReward0 * Q128) / totalVLiquidity);
-        uint256 tokenReward1 = multiplier * rewardPerBlock1;
-        accRewardPerShare1 = accRewardPerShare1 + ((tokenReward1 * Q128) / totalVLiquidity);
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        accRewardPerShare = accRewardPerShare + ((tokenReward * Q128) / totalVLiquidity);
         lastTouchBlock = block.number;
     }
 
@@ -283,7 +272,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Deposit a single position.
     /// @param tokenId The related position id.
-    function deposit(uint256 tokenId) public returns (uint256 vLiquidity) {
+    function deposit(uint256 tokenId) external returns (uint256 vLiquidity) {
         address owner = uniV3NFTManager.ownerOf(tokenId);
         require(owner == msg.sender, "NOT OWNER");
 
@@ -313,7 +302,8 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
         uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
         owners[tokenId] = msg.sender;
-        tokenIds[msg.sender].add(tokenId);
+        bool res = tokenIds[msg.sender].add(tokenId);
+        require(res);
 
         // the execution order for the next three lines is crutial
         _updateGlobalStatus();
@@ -326,7 +316,7 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) public {
+    function withdraw(uint256 tokenId) external {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         collectReward(tokenId);
@@ -335,7 +325,8 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
         owners[tokenId] = address(0);
-        tokenIds[msg.sender].remove(tokenId);
+        bool res = tokenIds[msg.sender].remove(tokenId);
+        require(res);
 
         emit Withdraw(msg.sender, tokenId);
     }
@@ -349,23 +340,17 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
         _updateGlobalStatus();
 
         // l * (currentAcc - lastAcc)
-        uint256 _reward0 = (t.vLiquidity * (accRewardPerShare0 - t.lastTouchAccRewardPerShare0)) / Q128;
-        uint256 _reward1 = (t.vLiquidity * (accRewardPerShare1 - t.lastTouchAccRewardPerShare1)) / Q128;
-        // require(_reward0 > 0 || _reward1 >0 );
-        if (_reward0 > 0) {
-            rewardToken0.safeTransferFrom(owner(), msg.sender, _reward0);
-        }
-        if (_reward1 > 0) {
-            rewardToken1.safeTransferFrom(owner(), msg.sender, _reward1);
+        uint256 _reward = (t.vLiquidity * (accRewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
+        if (_reward > 0) {
+            rewardToken.safeTransferFrom(owner(), msg.sender, _reward);
         }
         _updateTokenStatus(tokenId, 0);
 
-        emit CollectReward(msg.sender, tokenId, address(rewardToken0), _reward0);
-        emit CollectReward(msg.sender, tokenId, address(rewardToken1), _reward1);
+        emit CollectReward(msg.sender, tokenId, _reward);
     }
 
     /// @notice Collect all pending rewards.
-    function collectRewards() public {
+    function collectRewards() external {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
             collectReward(ids.at(i));
@@ -391,45 +376,29 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to see pending Reward for a single position.
     /// @param tokenId The related position id.
-    function pendingReward(uint256 tokenId) external view returns (uint256, uint256) {
+    function pendingReward(uint256 tokenId) external view returns (uint256) {
         TokenStatus memory t = tokenStatus[tokenId];
         uint256 multiplier = _getMultiplier(lastTouchBlock, block.number);
-        uint256 tokenReward0 = multiplier * rewardPerBlock0;
-        uint256 rewardPerShare0 = accRewardPerShare0 + (tokenReward0 * Q128) / totalVLiquidity;
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        uint256 rewardPerShare = accRewardPerShare + (tokenReward * Q128) / totalVLiquidity;
         // l * (currentAcc - lastAcc)
-        uint256 _reward0 = (t.vLiquidity * (rewardPerShare0 - t.lastTouchAccRewardPerShare0)) / Q128;
-
-        uint256 tokenReward1 = multiplier * rewardPerBlock1;
-        uint256 rewardPerShare1 = accRewardPerShare1 + (tokenReward1 * Q128) / totalVLiquidity;
-        // l * (currentAcc - lastAcc)
-        uint256 _reward1 = (t.vLiquidity * (rewardPerShare1 - t.lastTouchAccRewardPerShare1)) / Q128;
-
-        return (_reward0, _reward1);
+        uint256 _reward = (t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
+        return _reward;
     }
 
     /// @notice View function to see pending Rewards for an address.
     /// @param _user The related address.
-    function pendingRewards(address _user) external view returns (uint256, uint256) {
+    function pendingRewards(address _user) external view returns (uint256) {
         uint256 multiplier = _getMultiplier(lastTouchBlock, block.number);
-        uint256 tokenReward = multiplier * rewardPerBlock0;
-        uint256 rewardPerShare = accRewardPerShare0 + (tokenReward * Q128) / totalVLiquidity;
-        uint256 _reward0 = 0;
-        uint256 _reward1 = 0;
+        uint256 tokenReward = multiplier * rewardPerBlock;
+        uint256 rewardPerShare = accRewardPerShare + (tokenReward * Q128) / totalVLiquidity;
+        uint256 _reward = 0;
 
         for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
             TokenStatus memory t = tokenStatus[tokenIds[_user].at(i)];
-            _reward0 += (t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare0)) / Q128;
+            _reward += (t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare)) / Q128;
         }
-
-        tokenReward = multiplier * rewardPerBlock1;
-        rewardPerShare = accRewardPerShare1 + (tokenReward * Q128) / totalVLiquidity;
-
-        for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
-            TokenStatus memory t = tokenStatus[tokenIds[_user].at(i)];
-            _reward1 += (t.vLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare1)) / Q128;
-        }
-
-        return (_reward0, _reward1);
+        return _reward;
     }
 
     /// @notice Widthdraw a single position without claiming rewards.
@@ -452,7 +421,8 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
         emit WithdrawNoReward(msg.sender, tokenId);
     }
 
-    // Control fuctions for the contract owner.
+
+    // Control fuctions for the contract owner and operators.
 
     /// @notice If something goes wrong, we can send back user's nft.
     /// @param tokenId The related position id.
@@ -465,19 +435,15 @@ contract Mining2R is Ownable, Multicall, ReentrancyGuard {
     function modifyEndBlock(uint256 _endBlock) external onlyOwner {
         _updateGlobalStatus();
         endBlock = _endBlock;
+        emit ModifyEndBlock(endBlock);
     }
 
     /// @notice Set new reward per block.
-    /// @param _rewardPerBlock0 New end block.
-    function modifyRewardPerBlock0(uint _rewardPerBlock0) external onlyOwner {
+    /// @param _rewardPerBlock New end block.
+    function modifyRewardPerBlock(uint _rewardPerBlock) external onlyOwner {
         _updateGlobalStatus();
-        rewardPerBlock0 = _rewardPerBlock0;
+        rewardPerBlock = _rewardPerBlock;
+        emit ModifyRewardPerBlock(rewardPerBlock);
     }
 
-    /// @notice Set new reward per block.
-    /// @param _rewardPerBlock1 New end block.
-    function modifyRewardPerBlock1(uint _rewardPerBlock1) external onlyOwner {
-        _updateGlobalStatus();
-        rewardPerBlock1 = _rewardPerBlock1;
-    }
 }

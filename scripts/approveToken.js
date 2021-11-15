@@ -5,13 +5,14 @@ const managerJson = require(contracts.nftMangerJson);
 const managerAddress = contracts.nftManger;
 
 const v = process.argv
+const net = process.env.HARDHAT_NETWORK
 
 
-// Example: HARDHAT_NETWORK='izumi_test' node approveToken.js 'BIT' '0x9a807F7aaBbc502b11434e069187Df8E78c0a599'
+// Example: HARDHAT_NETWORK='izumiTest' node approveToken.js 'BIT' '0x9a807F7aaBbc502b11434e069187Df8E78c0a599'
 
 const para = {
     token0Symbol: v[2],
-    token0Address: contracts[v[2]],
+    token0Address: contracts[net][v[2]],
     approveAddress: v[3],
 }
 
