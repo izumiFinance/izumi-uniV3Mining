@@ -68,7 +68,7 @@ contract Staking is IStaking, Ownable {
     function _safeAccrualTransfer(address _to, uint256 _amount) private {
         IBEP20(token).safeTransferFrom(tokenProvider, _to, _amount);
     }
-    function deposit(uint256 _amount) external {
+    function deposit(uint256 _amount) external override {
         UserInfo storage user = userInfo[msg.sender];
         updatePool();
         if (user.amount > 0) {
@@ -86,7 +86,7 @@ contract Staking is IStaking, Ownable {
         // _mint(msg.sender, _amount);
         emit Deposit(msg.sender, _amount);
     }
-    function withdraw(uint256 _amount) external {
+    function withdraw(uint256 _amount) external override {
         UserInfo storage user = userInfo[msg.sender];
         require(user.amount >= _amount, "withdraw: not enough!");
         updatePool();
@@ -103,7 +103,7 @@ contract Staking is IStaking, Ownable {
         // _burn(msg.sender, _amount);
         emit Withdraw(msg.sender, _amount);
     }
-    function collect(address recipient, uint256 limit) external returns(uint256) {
+    function collect(address recipient, uint256 limit) external override returns(uint256) {
         UserInfo storage user = userInfo[msg.sender];
         if (limit == 0) {
             limit = user.pending;

@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("uniswap-v3-deploy-plugin");
+require('hardhat-contract-sizer');
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -16,7 +17,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 
 const secret = require('./.secret.js');
 
-const sk = secret.sk;
+const sk = secret.pk;
 const izumiRpcUrl = "http://47.241.103.6:9545";
 
 /**
