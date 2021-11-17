@@ -1,7 +1,12 @@
 pragma solidity ^0.8.4;
 import "./utils.sol";
 import "./Staking.sol";
+import "./LogPowMath.sol";
+import "./MulDivMath.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "@uniswap/v3-core/contracts/intefaces/IUniswapV3Factory.sol";
+import "@uniswap/v3-core/contracts/intefaces/IUniswapV3Pool.sol";
+
 
 contract Main is Ownable{
 
@@ -21,7 +26,8 @@ contract Main is Ownable{
         uint256 uniStakingRewardDebt;
         uint256 uniStakingAccuralPending;
 
-        uint256 uniTokenID;
+        uint256 uniPositionID;
+        uint256 uniLiquidity;
     }
     struct UniStakingPoolInfo {
         address tokenProvider;
@@ -39,8 +45,18 @@ contract Main is Ownable{
     address weth;
     address nftManager;
     address uniFactory;
-
+    uint256 internal constant sqrt2A = 141421;
+    uint256 internal constant sqrt2B = 100000;
+    uint256 internal constant Q96 = 0x1000000000000000000000000;
     mapping (uint256 => address) userMiningOwner;
+    mapping (uint256 => UserMiningInfo) userMiningInfo;
+
+
+
+    event Mint(uint256 indexed miningID, address indexed owner, uint256 amountUni, uint256 amountStaking);
+    event Collect(uint256 indexed miningID, address indexed recipient, uint256 amountUni, uint256 amountStaking);
+    event Withdraw(uint256 indexed miningID, uint256 amountUni, uint256 amountStaking);
+
     modifier checkMiningOwner(uint256 userMiningID) {
         require(userMiningOwner[userMiningID] == msg.sender, "Not Owner!");
         _;
@@ -182,14 +198,225 @@ contract Main is Ownable{
             IBEP20(user.tokenUni).safeTransferFrom(tokenUniProvider, recipient, collected);
         }
     }
+    function getTickPrice(address pool) private pure returns(int24 tick, uint160 sqrtPriceX95) {
+        (
+            uint160 sqrtPriceX96_,
+            int24 tick_,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext,
+            uint8 feeProtocol,
+            bool unlocked
+        ) = IUniswapV3Pool(pool).slot0();
+        tick = tick_;
+        sqrtPriceX96 = sqrtPriceX96_;
+    }
+    function tickFloor(int24 tick, int24 tickSpacing) {
+        int24 c = tick / tickSpacing;
+        if (tick < 0 && tick % tickSpacing != 0) {
+            c = c - 1;
+        }
+        c = c * tickSpacing;
+        return c;
+    }
+    function tickUpper(int24 tick, int24 tickSpacing) {
+        int24 c = tick / tickSpacing;
+        if (tick > 0 && tick % tickSpacing != 0) {
+            c = c + 1;
+        }
+        c = c * tickSpacing;
+        return c;
+    }
+    function getTickRange(
+        address tokenUni,
+        address tokenStaking,
+        uint24 fee
+    ) private pure returns(int24 tickLeft, int24 tickRight, uint160 sqrtPriceX96) {
+        address pool = IUniswapV3Factory(factory).getPool(tokenStaking, tokenUni, fee);
+        require(pool != address(0), "No Uniswap Pool!");
+        int24 tick;
+        (tick, sqrtPriceX96) = getTickPrice(pool);
+        uint24 tickSpacing = IUniswapV3Factory(factory).feeAmountTickSpacing(fee);
+        if (tokenUni < tokenStaking) {
+            tickRight = tick;
+            uint160 sqrtHalfPriceX96 = sqrtPriceX96 * sqrt2B / sqrt2A;
+            tickLeft = LogPowMath.getLogSqrtPriceFloor(sqrtHalfPriceX96);
+            tickRight = tickFloor(tickRight, tickSpacing);
+            tickLeft = tickFloor(tickLeft, tickSpacing);
+        } else {
+            tickLeft = tick;
+            uint160 sqrtDoublePriceX96 = sqrtPriceX96 * sqrt2A / sqrt2B;
+            tickRight = LogPowMath.getLogSqrtPriceFloor(sqrtDoublePriceX96);
+            tickLeft = tickUpper(tickLeft, tickSpacing);
+            tickRight = tickUpper(tickRight, tickSpacing);
+        }
+        require(tickLeft < tickRight, "L<R");
+    }
+    function getAmountStaking(
+        address tokenUni,
+        address tokenStaking,
+        uint160 sqrtPriceX96,
+        uint256 amountUni
+    ) private pure returns(uint256 amountStaking) {
+        uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, Q96);
+        if (tokenUni < tokenStaking) {
+            amountStaking = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
+        } else {
+            amountStaking = MulDivMath.mulDivCeil(amountUni, priceX96, Q96);
+        }
+    }
+    function mintUniswap(
+        address tokenUni, 
+        address tokenStaking, 
+        uint256 amountUni, 
+        uint24 fee, 
+        int24 tickLeft, 
+        int24 tickRight, 
+        uint256 deadline
+    ) private pure returns(uint256 tokenId, uint128 liquidity, uint256 actualAmountUni) {
+        INonfungiblePositionManager.MintParams memory params;
+        params.fee = fee;
+        params.tickLower = tickLeft;
+        params.tickUpper = tickRight;
+        params.deadline = deadline;
+        if (tokenUni < tokenStaking) {
+            params.token0 = tokenUni;
+            params.token1 = tokenStaking;
+            params.amount0Desired = amountUni;
+            params.amount1Desired = 0;
+            params.amount0Min = 1;
+            params.amount1Min = 0;
+            params.recipient = address(this);
+            uint256 amount1;
+            (tokenId, liquidity, actualAmountUni, amount1) = INonfungiblePositionManager(nftManager).mint(params);
+            require(amount1 == 0, "No Staking Token to Uni!");
+            require(actualAmountUni <= amountUni, "TokenUni Not Enough!");
+        } else {
+            params.token0 = tokenStaking;
+            params.token1 = tokenUni;
+            params.amount0Desired = 0;
+            parmas.amount1Desired = amountUni;
+            params.amount0Min = 0;
+            params.amount1Min = 1;
+            params.recipient = address(this);
+            uint256 amount0;
+            (tokenId, liquidity, amount0, actualAmountUni) = INonfungiblePositionManager(nftManager).mint(params);
+            require(amount1 == 0, "No Staking Token to Uni!");
+            require(actualAmountUni <= amountUni, "TokenUni Not Enough!");
+        }
+    }
+    function collectUniswap(
+        address tokenUni,
+        address tokenStaking,
+        uint256 uniPositionID,
+        address recipient
+    ) private pure returns(uint256 amountUni, uint256 amountStaking) {
+        INonfungiblePositionManager.CollectParams memory params;
+        params.tokenId = uniPositionID;
+        params.recipient = recipient;
+        params.amount0Max = 0xffffffffffffffffffffffffffffffff;
+        params.amount1Max = 0xffffffffffffffffffffffffffffffff;
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(nftManager).collect(params);
+        if (tokenUni < tokenStaking) {
+            amountUni = amount0;
+            amountStaking = amount1;
+        } else {
+            amountUni = amount1;
+            amountStaking = amount0;
+        }
+    }
+    function withdrawUniswap(
+        address tokenUni,
+        address tokenStaking,
+        uint256 uniPositionID,
+        uint128 liquidity,
+        uint256 deadline
+    ) private pure returns(uint256 amountUni, uint256 amountStaking) {
+        INonfungiblePositionManager.DecreaseLiquidityParams memory params;
+        params.tokenId = uniPositionID;
+        params.liquidity = liquidity;
+        params.amount0Min = 0;
+        params.amount1Min = 0;
+        params.deadline = deadline;
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(nftManager).decreaseLiquidity(params);
+        if (tokenUni < tokenStaking) {
+            amountUni = amount0;
+            amountStaking = amount1;
+        } else {
+            amountUni = amount1;
+            amountStaking = amount0;
+        }
+    }
     function mint(
         address tokenUni,
         address tokenStaking,
-        uint256 amountUni
-    ) external payable {
-        require(stakingPool[tokenStaking] != address(0), "No Staking Pool!");
+        uint24 fee,
+        uint256 amountUni,
+        uint256 deadline
+    ) external returns(uint256 userMiningID){
+        require(tokenUni != weth, "Weth Not Support Now!");
+        require(tokenStaking != weth, "Weth Not Support Now!");
+        address staking = stakingPool[tokenStaking];
+        require(staking != address(0), "No Staking Pool!");
         UniStakingPoolInfo storage uniPoolInfo = uniStakingPoolInfo[tokenUni];
         require(uniPoolInfo.inited, "No Uni Staking Pool!");
+
+        IBEP20(tokenUni).safeTransferFrom(address(msg.sender), address(this), amountUni);
+
+        (int24 tickLeft, int24 tickRight, uint256 sqrtPriceX96) = getTickRange(tokenUni, tokenStaking, fee);
+        uint256 amountStaking = getAmountStaking(tokenUni, tokenStaking, sqrtPriceX96, amountUni);
+        IBEP20(tokenStaking).safeTransferFrom(address(msg.sender), address(this), amountStaking);
+
+        userMiningID = userMiningNum;
+        userMiningNum ++;
+        UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
+        miningInfo.tokenUni = tokenUni;
+        miningInfo.tokenStaking = tokenStaking;
+        depositStaking(miningInfo, staking, amountStaking);
+
+        IBEP20(tokenUni).safeApprove(nftManager, amountUni);
+        (uint256 tokenId, uint128 liquidity, uint256 actualAmountUni) = mintUniswap(tokenUni, tokenStaking, amountUni, fee, tickLeft, tickRight, deadline);
+        IBEP20(tokenUni).safeApprove(nftManager, 0);
+        if (actualAmountUni < amountUni) {
+            // refund
+            IBEP20(tokenUni).safeTransfer(address(msg.sender), amountUni - actualAmountUni);
+        }
+        user.uniPositionID = tokenId;
+        user.uniLiquidity = liquidity;
+        depositUniStaking(user, actualAmountUni);
+
+        emit Mint(userMiningID, address(msg.sender), actualAmountUni, amountStaking);
+    }
+    function collect(
+        uint256 userMiningID, address recipient, uint256 limit
+    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking)
+    {
+        UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
         
+        uint256 stakingCollect = collectStaking(recipient, miningInfo, stakingPool[tokenStaking], 0);
+        uint256 uniCollect = collectUniStaking(recipient, miningInfo, 0);
+        (amountUni, amountStaking) = collectUniswap(
+            miningInfo.tokenUni, miningInfo.tokenStaking, miningInfo.uniPositionID, recipient
+        );
+        amountUni += uniCollect;
+        amountStaking += stakingCollect;
+
+        emit Collect(userMiningID, recipient, amountUni, amountStaking);
+    }
+    function withdraw(
+        uint256 userMiningID,
+        uint256 deadline
+    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking) {
+        UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
+
+        uint256 withdrawFromStaking = miningInfo.stakingAmount;
+        withdrawStaking(miningInfo, stakingPool[miningInfo.tokenStaking], withDrawFromStaking);
+        withdrawUniStaking(miningInfo, miningInfo.uniStakingAmount);
+
+        (amountUni, amountStaking) = withdrawUniswap(miningInfo.tokenUni, miningInfo.tokenStaking, miningInfo.uniPositionID, miningInfo.uniLiquidity, deadline);
+        miningInfo.uniLiquidity = 0;
+        // we donot involve miningInfo.uniStakingAmount, because the amount has been involved in uniswap
+        amountStaking += withdrawFromStaking;
+        emit Withdraw(userMiningID, amountUni, amountStaking);
     }
 }
