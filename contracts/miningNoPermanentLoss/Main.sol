@@ -337,7 +337,7 @@ contract Main is Ownable{
     }
     function mint(
         MintParams calldata params
-    ) external payable returns(uint256 userMiningID){
+    ) external returns(uint256 userMiningID){
         require(params.tokenUni != weth, "Weth Not Support Now!");
         require(params.tokenStaking != weth, "Weth Not Support Now!");
         require(params.tokenUni != params.tokenStaking, "Same Token!");
@@ -428,7 +428,7 @@ contract Main is Ownable{
     function withdraw(
         uint256 userMiningID,
         uint256 deadline
-    ) external payable checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking) {
+    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking) {
         UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
 
         uint256 withdrawFromStaking = miningInfo.stakingAmount;
