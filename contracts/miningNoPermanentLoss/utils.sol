@@ -1,6 +1,6 @@
 pragma solidity ^0.8.4;
 
-interface IBEP20 {
+interface IERC20 {
 
     function totalSupply() external view returns (uint256);
 
@@ -113,11 +113,11 @@ library Address {
     }
 }
 
-library SafeBEP20 {
+library SafeERC20 {
     using Address for address;
 
     function safeTransfer(
-        IBEP20 token,
+        IERC20 token,
         address to,
         uint256 value
     ) internal {
@@ -125,7 +125,7 @@ library SafeBEP20 {
     }
 
     function safeTransferFrom(
-        IBEP20 token,
+        IERC20 token,
         address from,
         address to,
         uint256 value
@@ -134,20 +134,20 @@ library SafeBEP20 {
     }
 
     function safeApprove(
-        IBEP20 token,
+        IERC20 token,
         address spender,
         uint256 value
     ) internal {
         
         require(
             (value == 0) || (token.allowance(address(this), spender) == 0),
-            'SafeBEP20: approve from non-zero to non-zero allowance'
+            'SafeERC20: approve from non-zero to non-zero allowance'
         );
         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, value));
     }
 
     function safeIncreaseAllowance(
-        IBEP20 token,
+        IERC20 token,
         address spender,
         uint256 value
     ) internal {
@@ -156,7 +156,7 @@ library SafeBEP20 {
     }
 
     function safeDecreaseAllowance(
-        IBEP20 token,
+        IERC20 token,
         address spender,
         uint256 value
     ) internal {
@@ -164,13 +164,13 @@ library SafeBEP20 {
         _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, newAllowance));
     }
 
-    function _callOptionalReturn(IBEP20 token, bytes memory data) private {
+    function _callOptionalReturn(IERC20 token, bytes memory data) private {
 
-        bytes memory returndata = address(token).functionCall(data, 'SafeBEP20: low-level call failed');
+        bytes memory returndata = address(token).functionCall(data, 'SafeERC20: low-level call failed');
         if (returndata.length > 0) {
             // Return data is optional
             // solhint-disable-next-line max-line-length
-            require(abi.decode(returndata, (bool)), 'SafeBEP20: BEP20 operation did not succeed');
+            require(abi.decode(returndata, (bool)), 'SafeERC20: ERC20 operation did not succeed');
         }
     }
 }

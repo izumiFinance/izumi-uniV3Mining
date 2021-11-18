@@ -10,7 +10,7 @@ interface IStaking {
 }
 contract Staking is IStaking, Ownable {
 
-    using SafeBEP20 for IBEP20;
+    using SafeERC20 for IERC20;
 
     address public override token;
     address public tokenProvider;
@@ -66,7 +66,7 @@ contract Staking is IStaking, Ownable {
         lastRewardBlock = block.number;
     }
     function _safeAccrualTransfer(address _to, uint256 _amount) private {
-        IBEP20(token).safeTransferFrom(tokenProvider, _to, _amount);
+        IERC20(token).safeTransferFrom(tokenProvider, _to, _amount);
     }
     function deposit(uint256 _amount) external override {
         UserInfo storage user = userInfo[msg.sender];
@@ -78,7 +78,7 @@ contract Staking is IStaking, Ownable {
             }
         }
         if(_amount > 0) {
-            IBEP20(token).safeTransferFrom(address(msg.sender), address(this), _amount);
+            IERC20(token).safeTransferFrom(address(msg.sender), address(this), _amount);
             user.amount = user.amount + _amount;
             stakeAmount = stakeAmount + _amount;
         }
@@ -113,7 +113,7 @@ contract Staking is IStaking, Ownable {
         }
         if (limit > 0) {
             user.pending -= limit;
-            IBEP20(token).safeTransferFrom(recipient, address(this), limit);
+            IERC20(token).safeTransferFrom(recipient, address(this), limit);
         }
         return limit;
     }

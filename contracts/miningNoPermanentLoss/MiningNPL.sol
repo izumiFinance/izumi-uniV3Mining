@@ -4,14 +4,12 @@ import "./Staking.sol";
 import "./LogPowMath.sol";
 import "./MulDivMath.sol";
 import "./interfaces.sol";
+import "hardhat/console.sol";
 
+contract MiningNPL is Ownable{
 
-contract Main is Ownable{
-
-    using SafeBEP20 for IBEP20;
-    
-    mapping (address => address) public token2Staking;
-    
+    using SafeERC20 for IERC20;
+        
     struct UserMiningInfo {
         address tokenStaking;
         address tokenUni;
@@ -39,17 +37,15 @@ contract Main is Ownable{
     }
     mapping (address => UniStakingPoolInfo) public uniStakingPoolInfo;
     mapping (address => address) public stakingPool;
-    uint256 userMiningNum = 0;
-    address weth;
-    address nftManager;
-    address uniFactory;
+    uint256 public userMiningNum = 0;
+    address public weth;
+    address public nftManager;
+    address public uniFactory;
     uint256 internal constant sqrt2A = 141421;
     uint256 internal constant sqrt2B = 100000;
     uint256 internal constant Q96 = 0x1000000000000000000000000;
-    mapping (uint256 => address) userMiningOwner;
-    mapping (uint256 => UserMiningInfo) userMiningInfo;
-
-
+    mapping (uint256 => address) public userMiningOwner;
+    mapping (uint256 => UserMiningInfo) public userMiningInfo;
 
     event Mint(uint256 indexed miningID, address indexed owner, uint256 amountUni, uint256 amountStaking);
     event Collect(uint256 indexed miningID, address indexed recipient, uint256 amountUni, uint256 amountStaking);
@@ -90,7 +86,12 @@ contract Main is Ownable{
         stakingPool[token] = staking;
     }
     function depositStaking(UserMiningInfo storage user, address staking, uint256 _amount) private {
+        console.log("_amount: %s", _amount);
+
+        IERC20(user.tokenStaking).approve(staking, _amount);
         IStaking(staking).deposit(_amount);
+        IERC20(user.tokenStaking).approve(staking, 0);
+
         uint256 accTokenPerShare = IStaking(staking).accTokenPerShare();
         uint256 pending = user.stakingAmount * accTokenPerShare / 1e12 - user.stakingRewardDebt;
         if (pending > 0) {
@@ -199,7 +200,7 @@ contract Main is Ownable{
         if (collected > 0) {
             UniStakingPoolInfo memory poolInfo = uniStakingPoolInfo[user.tokenUni];
             address tokenUniProvider = poolInfo.tokenProvider;
-            IBEP20(user.tokenUni).safeTransferFrom(tokenUniProvider, recipient, collected);
+            IERC20(user.tokenUni).safeTransferFrom(tokenUniProvider, recipient, collected);
         }
     }
     function getTickPrice(
@@ -249,19 +250,23 @@ contract Main is Ownable{
         (tick, tickRange.sqrtPriceX96) = getTickPrice(pool);
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(fee);
         if (tokenUni < tokenStaking) {
-            tickRange.tickRight = tick;
-            uint256 sqrtHalfPriceX96 = uint256(tickRange.sqrtPriceX96) * sqrt2B / sqrt2A;
-            require(uint160(sqrtHalfPriceX96) == sqrtHalfPriceX96, "p/2 O");
-            tickRange.tickLeft = LogPowMath.getLogSqrtPriceFloor(uint160(sqrtHalfPriceX96));
-            tickRange.tickRight = tickFloor(tickRange.tickRight, tickSpacing);
-            tickRange.tickLeft = tickFloor(tickRange.tickLeft, tickSpacing);
-        } else {
-            tickRange.tickLeft = tick;
+            // price is tokenStaking / tokenUni
+            // tokenUni is X
+            tickRange.tickLeft = tick + 1;
             uint256 sqrtDoublePriceX96 = uint256(tickRange.sqrtPriceX96) * sqrt2A / sqrt2B;
             require(uint160(sqrtDoublePriceX96) == sqrtDoublePriceX96, "2p O");
             tickRange.tickRight = LogPowMath.getLogSqrtPriceFloor(uint160(sqrtDoublePriceX96));
             tickRange.tickLeft = tickUpper(tickRange.tickLeft, tickSpacing);
             tickRange.tickRight = tickUpper(tickRange.tickRight, tickSpacing);
+        } else {
+            // price is tokenUni / tokenStaking
+            // tokenUni is Y
+            tickRange.tickRight = tick;
+            uint256 sqrtHalfPriceX96 = uint256(tickRange.sqrtPriceX96) * sqrt2B / sqrt2A;
+            require(uint160(sqrtHalfPriceX96) == sqrtHalfPriceX96, "p/2 O");
+            tickRange.tickLeft = LogPowMath.getLogSqrtPriceFloor(uint160(sqrtHalfPriceX96));
+            tickRange.tickLeft = tickFloor(tickRange.tickLeft, tickSpacing);
+            tickRange.tickRight = tickFloor(tickRange.tickRight, tickSpacing);
         }
         require(tickRange.tickLeft < tickRange.tickRight, "L<R");
     }
@@ -273,9 +278,10 @@ contract Main is Ownable{
     ) private pure returns(uint256 amountStaking) {
         uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, Q96);
         if (tokenUni < tokenStaking) {
-            amountStaking = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
-        } else {
+            // price is tokenStaking / tokenUni
             amountStaking = MulDivMath.mulDivCeil(amountUni, priceX96, Q96);
+        } else {
+            amountStaking = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
         }
     }
     function mintUniswapParam(
@@ -346,11 +352,11 @@ contract Main is Ownable{
         UniStakingPoolInfo storage uniPoolInfo = uniStakingPoolInfo[params.tokenUni];
         require(uniPoolInfo.inited, "No Uni Staking Pool!");
 
-        IBEP20(params.tokenUni).safeTransferFrom(address(msg.sender), address(this), params.amountUni);
+        IERC20(params.tokenUni).safeTransferFrom(address(msg.sender), address(this), params.amountUni);
 
         TickRange memory tickRange = getTickRange(params.tokenUni, params.tokenStaking, params.fee);
         uint256 amountStaking = getAmountStaking(params.tokenUni, params.tokenStaking, tickRange.sqrtPriceX96, params.amountUni);
-        IBEP20(params.tokenStaking).safeTransferFrom(address(msg.sender), address(this), amountStaking);
+        IERC20(params.tokenStaking).safeTransferFrom(address(msg.sender), address(this), amountStaking);
 
         userMiningID = userMiningNum;
         userMiningNum ++;
@@ -359,7 +365,7 @@ contract Main is Ownable{
         miningInfo.tokenStaking = params.tokenStaking;
         depositStaking(miningInfo, staking, amountStaking);
 
-        IBEP20(params.tokenUni).safeApprove(nftManager, params.amountUni);
+        IERC20(params.tokenUni).safeApprove(nftManager, params.amountUni);
         INonfungiblePositionManager.MintParams memory uniParams = mintUniswapParam(
             params.tokenUni,
             params.tokenStaking,
@@ -392,10 +398,10 @@ contract Main is Ownable{
             require(actualAmountUni <= params.amountUni, "Uniswap ActualUni Exceed!");
             require(amount0 == 0, "Uniswap No AmountStaking!");
         }
-        IBEP20(params.tokenUni).safeApprove(nftManager, 0);
+        IERC20(params.tokenUni).safeApprove(nftManager, 0);
         if (actualAmountUni < params.amountUni) {
             // refund
-            IBEP20(params.tokenUni).safeTransfer(address(msg.sender), params.amountUni - actualAmountUni);
+            IERC20(params.tokenUni).safeTransfer(address(msg.sender), params.amountUni - actualAmountUni);
         }
         depositUniStaking(miningInfo, actualAmountUni);
 
