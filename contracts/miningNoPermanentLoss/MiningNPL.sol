@@ -15,7 +15,7 @@ contract MiningNPL is Ownable{
     struct MiningInfo {
         uint256 amountLock;
         uint256 vLiquidity;
-        uint256 lastTouchAccReward;
+        uint256 lastTouchAccRewardPerShareX128;
 
         uint256 uniPositionID;
         uint128 uniLiquidity;
@@ -29,12 +29,13 @@ contract MiningNPL is Ownable{
         address token;
         address provider;
         uint256 tokenPerBlock;
+        uint256 endBlock;
         uint256 startBlock;
         uint256 BONUS_MULTIPLIER;
     }
 
     uint256 totalVLiquidity;
-    uint256 accRewardPerShare;
+    uint256 accRewardPerShareX128;
     uint256 lastRewardBlock;
 
     RewardInfo public rewardInfo;
@@ -46,9 +47,10 @@ contract MiningNPL is Ownable{
     uint256 internal constant sqrt2A = 141421;
     uint256 internal constant sqrt2B = 100000;
     uint256 internal constant Q96 = 0x1000000000000000000000000;
+    uint256 internal constant Q128 = 0x100000000000000000000000000000000;
     mapping (uint256 => address) public miningOwner;
     mapping (uint256 => MiningInfo) public miningInfos;
-    mapping(address => EnumerableSet.UintSet) private addr2MiningID;
+    mapping(address => EnumerableSet.UintSet) private addr2MiningIDs;
 
     event Mint(uint256 indexed miningID, address indexed owner, uint256 vLiquidity, uint256 amountLock);
     event Collect(uint256 indexed miningID, address indexed recipient, uint256 amountUni, uint256 amountLock, uint256 amountReward);
@@ -73,9 +75,10 @@ contract MiningNPL is Ownable{
 
         rewardInfo = rewardInfoParams;
         lastRewardBlock = rewardInfoParams.startBlock;
+        require(rewardInfoParams.startBlock < rewardInfoParams.endBlock, "start < end");
 
         totalVLiquidity = 0;
-        accRewardPerShare = 0;
+        accRewardPerShareX128 = 0;
     }
 
     modifier checkMiningOwner(uint256 miningID) {
@@ -88,9 +91,20 @@ contract MiningNPL is Ownable{
     ) external onlyOwner {
         rewardInfo.provider = rewardProvider;
     }
+    function setRewardEndBlock(
+        uint256 rewardEndBlock
+    ) external onlyOwner {
+        require(block.number <= rewardInfo.endBlock, "Finished!");
+        if (rewardEndBlock >= block.number) {
+            rewardInfo.endBlock = block.number;
+        }
+    }
 
     function _updateGlobalReward() private {
         if (block.number <= lastRewardBlock) {
+            return;
+        }
+        if (block.number > rewardInfo.endBlock) {
             return;
         }
         if (totalVLiquidity == 0) {
@@ -99,7 +113,7 @@ contract MiningNPL is Ownable{
         }
         uint256 multiplier = (block.number - lastRewardBlock) * rewardInfo.BONUS_MULTIPLIER;
         uint256 tokenReward = multiplier * rewardInfo.tokenPerBlock;
-        accRewardPerShare = accRewardPerShare + tokenReward * 1e12 / totalVLiquidity;
+        accRewardPerShareX128 += MulDivMath.mulDivFloor(tokenReward, Q128, totalVLiquidity);
         lastRewardBlock = block.number;
     }
 
@@ -109,12 +123,12 @@ contract MiningNPL is Ownable{
         miningInfo.amountLock = amountLock;
         miningInfo.vLiquidity = vLiquidity;
         // todo: whether need ceil?
-        miningInfo.lastTouchAccReward = vLiquidity * accRewardPerShare / 1e12;
+        miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
 
     function getMiningIDList(address user) external view returns (uint256[] memory) {
 
-        EnumerableSet.UintSet storage ids = addr2MiningID[user];
+        EnumerableSet.UintSet storage ids = addr2MiningIDs[user];
         // push could not be used in memory array
         // we set the miningIDList into a fixed-length array rather than dynamic
         uint256[] memory miningIDList = new uint256[](ids.length());
@@ -124,45 +138,96 @@ contract MiningNPL is Ownable{
         return miningIDList;
     }
 
-    function pendingReward(uint256 miningID) external returns(uint256 amountReward) {
-        _updateGlobalReward();
+    function _pendingReward(uint256 miningID) private view returns(uint256 amountReward) {
         MiningInfo memory miningInfo = miningInfos[miningID];
-        amountReward = miningInfo.vLiquidity * accRewardPerShare / 1e12 - miningInfo.lastTouchAccReward;
+        amountReward = MulDivMath.mulDivFloor(
+            miningInfo.vLiquidity, 
+            accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
+            Q128
+        );
     }
 
+    function pendingReward(uint256 miningID) external returns(uint256 amountReward) {
+        _updateGlobalReward();
+        amountReward = _pendingReward(miningID);
+    }
+
+    function pendingRewards(address user) external returns(uint256 amountRewards) {
+        amountRewards = 0;
+        EnumerableSet.UintSet storage ids = addr2MiningIDs[user];
+        _updateGlobalReward();
+
+        for (uint256 i = 0; i < ids.length(); i++) {
+            amountRewards += _pendingReward(ids.at(i));
+        }
+    }
+    
     function _collect(
         address recipient,
-        MiningInfo storage miningInfo
+        MiningInfo storage miningInfo,
+        bool emergency
     ) private returns(
         uint256 amountReward
     ) {
         _updateGlobalReward();
-        amountReward = miningInfo.vLiquidity * accRewardPerShare / 1e12 - miningInfo.lastTouchAccReward;
+        amountReward = MulDivMath.mulDivFloor(
+            miningInfo.vLiquidity,
+            accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
+            Q128
+        );
         if (amountReward > 0) {
-            IERC20(rewardInfo.token).safeTransferFrom(rewardInfo.provider, recipient, amountReward);
+            if (!emergency) {
+                IERC20(rewardInfo.token).safeTransferFrom(rewardInfo.provider, recipient, amountReward);
+            } else {
+                // check provider's balance and allowance
+                uint256 allowance = IERC20(rewardInfo.token).allowance(rewardInfo.provider, address(this));
+                uint256 balance = IERC20(rewardInfo.token).balanceOf(rewardInfo.provider);
+                uint256 actualAmountReward = amountReward;
+                if (allowance > actualAmountReward) {
+                    actualAmountReward = allowance;
+                }
+                if (balance > actualAmountReward) {
+                    actualAmountReward = balance;
+                }
+                // call transferFrom
+                (bool success, bytes memory data) =
+                    rewardInfo.token.call(
+                        abi.encodeWithSelector(
+                            IERC20.transferFrom.selector,
+                            rewardInfo.provider,
+                            recipient,
+                            actualAmountReward
+                        )
+                    );
+                if (success && (data.length == 0 || abi.decode(data, (bool)))) {
+                    amountReward = actualAmountReward;
+                } else {
+                    amountReward = 0;
+                }
+            }
         }
-        miningInfo.lastTouchAccReward = miningInfo.vLiquidity * accRewardPerShare / 1e12;
+        miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
     
     function _withdraw(
         address recipient,
-        MiningInfo storage miningInfo
+        MiningInfo storage miningInfo,
+        bool emergency
     ) private returns(
         uint256 amountReward,
         uint256 amountLock
     ) {
         _updateGlobalReward();
         // first, collect rewarded tokens
-        uint256 amountReward = _collect(recipient, miningInfo);
+        amountReward = _collect(recipient, miningInfo, emergency);
         // second, refund locked tokens 
-        uint256 amountLock = miningInfo.amountLock;
+        amountLock = miningInfo.amountLock;
         if (amountLock > 0) {
             IERC20(tokenLock).safeTransfer(recipient, amountLock);
         }
         // third, clear miningInfo
         miningInfo.amountLock = 0;
         miningInfo.vLiquidity = 0;
-        miningInfo.lastTouchAccReward = 0;
     }
     function _getTickPrice(
         address pool
@@ -200,11 +265,7 @@ contract MiningNPL is Ownable{
         int24 tickRight;
         uint160 sqrtPriceX96;
     }
-    function _getTickRange(
-        address tokenUni,
-        address tokenLock,
-        uint24 fee
-    ) private view returns(TickRange memory tickRange) {
+    function _getTickRange() private view returns(TickRange memory tickRange) {
         address pool = IUniswapV3Factory(uniFactory).getPool(tokenLock, tokenUni, fee);
         require(pool != address(0), "No Uniswap Pool!");
         int24 tick;
@@ -232,11 +293,9 @@ contract MiningNPL is Ownable{
         require(tickRange.tickLeft < tickRange.tickRight, "L<R");
     }
     function _getAmountLock(
-        address tokenUni,
-        address tokenLock,
         uint160 sqrtPriceX96,
         uint256 amountUni
-    ) private pure returns(uint256 amountLock) {
+    ) private view returns(uint256 amountLock) {
         uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, Q96);
         if (tokenUni < tokenLock) {
             // price is tokenLock / tokenUni
@@ -246,10 +305,7 @@ contract MiningNPL is Ownable{
         }
     }
     function _mintUniswapParam(
-        address tokenUni, 
-        address tokenLock, 
         uint256 amountUni, 
-        uint24 fee, 
         int24 tickLeft, 
         int24 tickRight, 
         uint256 deadline
@@ -304,8 +360,8 @@ contract MiningNPL is Ownable{
         
         IERC20(tokenUni).safeTransferFrom(address(msg.sender), address(this), amountUni);
 
-        TickRange memory tickRange = _getTickRange(tokenUni, tokenLock, fee);
-        uint256 amountLock = _getAmountLock(tokenUni, tokenLock, tickRange.sqrtPriceX96, amountUni);
+        TickRange memory tickRange = _getTickRange();
+        uint256 amountLock = _getAmountLock(tickRange.sqrtPriceX96, amountUni);
         IERC20(tokenLock).safeTransferFrom(address(msg.sender), address(this), amountLock);
 
         miningID = miningNum ++;
@@ -313,10 +369,7 @@ contract MiningNPL is Ownable{
         
         IERC20(tokenUni).safeApprove(nftManager, amountUni);
         INonfungiblePositionManager.MintParams memory uniParams = _mintUniswapParam(
-            tokenUni,
-            tokenLock,
             amountUni,
-            fee,
             tickRange.tickLeft,
             tickRange.tickRight,
             deadline
@@ -351,7 +404,7 @@ contract MiningNPL is Ownable{
         }
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
 
-        addr2MiningID[msg.sender].add(miningID);
+        addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
 
         emit Mint(miningID, address(msg.sender), actualAmountUni, amountLock);
@@ -363,7 +416,7 @@ contract MiningNPL is Ownable{
     {
         MiningInfo storage miningInfo = miningInfos[miningID];
 
-        uint256 amountReward = _collect(recipient, miningInfo);
+        amountReward = _collect(recipient, miningInfo, false);
 
         INonfungiblePositionManager.CollectParams memory params = _collectUniswapParam(
             miningInfo.uniPositionID,
@@ -381,7 +434,8 @@ contract MiningNPL is Ownable{
     function withdraw(
         uint256 miningID,
         address recipient,
-        uint256 deadline
+        uint256 deadline,
+        bool emergency
     ) external checkMiningOwner(miningID) returns(uint256 amountUni, uint256 amountLock, uint256 amountReward) {
         
         MiningInfo storage miningInfo = miningInfos[miningID];
@@ -409,12 +463,30 @@ contract MiningNPL is Ownable{
         }
         miningInfo.uniLiquidity = 0;
 
-        (amountReward, amountLock) = _withdraw(recipient, miningInfo);
+        (amountReward, amountLock) = _withdraw(recipient, miningInfo, emergency);
 
         amountUni = amountUniFromSwap;
         amountLock += amountLockFromSwap;
 
-        addr2MiningID[msg.sender].remove(miningID);
+        addr2MiningIDs[msg.sender].remove(miningID);
         emit Withdraw(miningID, recipient, amountUni, amountLock, amountReward);
     }
+
+    function multicall(bytes[] calldata data) external payable returns (bytes[] memory results) {
+        results = new bytes[](data.length);
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory result) = address(this).delegatecall(data[i]);
+
+            if (!success) {
+                if (result.length < 68) revert();
+                assembly {
+                    result := add(result, 0x04)
+                }
+                revert(abi.decode(result, (string)));
+            }
+
+            results[i] = result;
+        }
+    }
+
 }
