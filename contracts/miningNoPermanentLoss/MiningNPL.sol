@@ -11,32 +11,49 @@ contract MiningNPL is Ownable{
     using SafeERC20 for IERC20;
         
     struct UserMiningInfo {
-        address tokenStaking;
-        address tokenUni;
 
-        uint256 stakingAmount;
-        uint256 stakingRewardDebt;
-        uint256 stakingPending;
+        // uint256 stakingAmount;
+        // uint256 stakingRewardDebt;
+        // uint256 stakingPending;
 
-        uint256 uniStakingAmount;
-        uint256 uniStakingRewardDebt;
-        uint256 uniStakingAccuralPending;
+        uint256 pledgeAmount;
+        uint256 uniMultiplier;
+        uint256 uniAmount;
+        uint256 uniRewardDebt;
+        uint256 uniRewardPending;
+        uint256 pledgePending;
 
         uint256 uniPositionID;
         uint128 uniLiquidity;
     }
-    struct UniStakingPoolInfo {
-        address tokenProvider;
+    
+    // address public staking;
+    address public tokenPledge;
+    address public tokenUni;
+    uint24 public fee;
+
+    struct UniRewardParam {
+        address token;
+        address provider;
         uint256 tokenPerBlock;
         uint256 startBlock;
-        uint256 accTokenPerShare;
         uint256 lastRewardBlock;
-        uint256 stakeAmount;
-        uint256 BONUS_MULTPLIER;
-        bool inited;
+        uint256 BONUS_MULTIPLIER;
     }
-    mapping (address => UniStakingPoolInfo) public uniStakingPoolInfo;
-    mapping (address => address) public stakingPool;
+
+    struct UniRewardInfo {
+        address token;
+        address provider;
+        uint256 tokenPerBlock;
+        uint256 startBlock;
+        uint256 lastRewardBlock;
+        uint256 BONUS_MULTIPLIER;
+        uint256 stakingAmount;
+        uint256 accTokenPerShare;
+    }
+
+    UniRewardInfo public uniRewardInfo;
+
     uint256 public userMiningNum = 0;
     address public weth;
     address public nftManager;
@@ -47,14 +64,34 @@ contract MiningNPL is Ownable{
     mapping (uint256 => address) public userMiningOwner;
     mapping (uint256 => UserMiningInfo) public userMiningInfo;
 
-    event Mint(uint256 indexed miningID, address indexed owner, uint256 amountUni, uint256 amountStaking);
-    event Collect(uint256 indexed miningID, address indexed recipient, uint256 amountUni, uint256 amountStaking);
-    event Withdraw(uint256 indexed miningID, uint256 amountUni, uint256 amountStaking);
+    event Mint(uint256 indexed miningID, address indexed owner, uint256 amountUni, uint256 amountPledge);
+    event Collect(uint256 indexed miningID, address indexed recipient, uint256 amountUni, uint256 amountPledge, uint256 amountUniReward);
+    event Withdraw(uint256 indexed miningID, uint256 amountUni, uint256 amountPledge);
 
-    constructor(address nfPositionManager) {
+    constructor(
+        address tokenUniAddr,
+        address tokenPledgeAddr,
+        uint24 swapFee,
+        address nfPositionManager,
+        UniRewardParam memory uniRewardParam
+    ) {
+        tokenUni = tokenUniAddr;
+        tokenPledgeAddr = tokenPledge;
+        fee = swapFee;
+
         nftManager = nfPositionManager;
         weth = INonfungiblePositionManager(nfPositionManager).WETH9();
         uniFactory = INonfungiblePositionManager(nfPositionManager).factory();
+
+        uniRewardInfo.token = uniRewardParam.token;
+        uniRewardInfo.provider = uniRewardParam.provider;
+        uniRewardInfo.tokenPerBlock = uniRewardParam.tokenPerBlock;
+        uniRewardInfo.startBlock = uniRewardParam.startBlock;
+        uniRewardInfo.lastRewardBlock = uniRewardParam.lastRewardBlock;
+        uniRewardInfo.BONUS_MULTIPLIER = uniRewardParam.BONUS_MULTIPLIER;
+
+        uniRewardInfo.stakingAmount = 0;
+        uniRewardInfo.accTokenPerShare = 0;
     }
 
     modifier checkMiningOwner(uint256 userMiningID) {
@@ -62,145 +99,80 @@ contract MiningNPL is Ownable{
         _;
     }
 
-    function setUniStakingPoolInfo(
-        address tokenUni,
-        address tokenProvider,
-        uint256 tokenPerBlock,
-        uint256 startBlock,
-        uint256 bonusMultiplier
+    function setUniRewardProvider(
+        address uniRewardProvider
     ) external onlyOwner {
-        UniStakingPoolInfo storage poolInfo = uniStakingPoolInfo[tokenUni];
-        poolInfo.tokenProvider = tokenProvider;
-        poolInfo.tokenPerBlock = tokenPerBlock;
-        poolInfo.startBlock = startBlock;
-        poolInfo.lastRewardBlock = startBlock;
-        poolInfo.BONUS_MULTPLIER = bonusMultiplier;
-        poolInfo.stakeAmount = 0;
-        poolInfo.inited = true;
+        uniRewardInfo.provider = uniRewardProvider;
     }
-    function setStakingPool(
-        address token,
-        address staking
-    ) external onlyOwner {
-        require(IStaking(staking).token() == token, "TKM");
-        stakingPool[token] = staking;
-    }
-    function depositStaking(UserMiningInfo storage user, address staking, uint256 _amount) private {
-        console.log("_amount: %s", _amount);
 
-        IERC20(user.tokenStaking).approve(staking, _amount);
-        IStaking(staking).deposit(_amount);
-        IERC20(user.tokenStaking).approve(staking, 0);
-
-        uint256 accTokenPerShare = IStaking(staking).accTokenPerShare();
-        uint256 pending = user.stakingAmount * accTokenPerShare / 1e12 - user.stakingRewardDebt;
-        if (pending > 0) {
-            user.stakingPending = user.stakingPending + pending;
-        }
-        if (_amount > 0) {
-            user.stakingAmount = user.stakingAmount + _amount;
-        }
-        user.stakingRewardDebt = user.stakingAmount * accTokenPerShare / 1e12;
-    }
-    function updateUniPool(UniStakingPoolInfo storage poolInfo) private {
-        if (block.number <= poolInfo.lastRewardBlock) {
+    function updateUniRewardInfo(UniRewardInfo storage uniInfo) private {
+        if (block.number <= uniInfo.lastRewardBlock) {
             return;
         }
-        uint256 lpSupply = poolInfo.stakeAmount;
+        uint256 lpSupply = uniInfo.stakingAmount;
         if (lpSupply == 0) {
-            poolInfo.lastRewardBlock = block.number;
+            uniInfo.lastRewardBlock = block.number;
             return;
         }
-        uint256 multiplier = (block.number - poolInfo.lastRewardBlock) * poolInfo.BONUS_MULTPLIER;
-        uint256 tokenReward = multiplier * poolInfo.tokenPerBlock;
-        poolInfo.accTokenPerShare = poolInfo.accTokenPerShare + tokenReward * 1e12 / lpSupply;
-        poolInfo.lastRewardBlock = block.number;
+        uint256 multiplier = (block.number - uniInfo.lastRewardBlock) * uniInfo.BONUS_MULTIPLIER;
+        uint256 tokenReward = multiplier * uniInfo.tokenPerBlock;
+        uniInfo.accTokenPerShare = uniInfo.accTokenPerShare + tokenReward * 1e12 / lpSupply;
+        uniInfo.lastRewardBlock = block.number;
     }
-    function depositUniStaking(UserMiningInfo storage user, uint256 _amount) private {
-        UniStakingPoolInfo storage poolInfo = uniStakingPoolInfo[user.tokenUni];
-        updateUniPool(poolInfo);
-        if (user.uniStakingAmount > 0) {
-            uint256 pending = user.uniStakingAmount * poolInfo.accTokenPerShare / 1e12 - user.uniStakingRewardDebt;
+    function newMiningInfo(UserMiningInfo storage user, uint256 pledgeAmount, uint256 uniAmount, uint256 uniMultiplier) private {
+        updateUniRewardInfo(uniRewardInfo);
+        
+        user.pledgeAmount = pledgeAmount;
+        user.uniMultiplier = uniMultiplier;
+        user.uniAmount = uniAmount;
+        user.uniRewardDebt = uniAmount * uniMultiplier * uniRewardInfo.accTokenPerShare / 1e12;
+        user.uniRewardPending = 0;
+    }
+    function updateMiningInfo(UserMiningInfo storage user) private {
+        updateUniRewardInfo(uniRewardInfo);
+
+        if (user.uniAmount > 0) {
+            uint256 pending = user.uniAmount * user.uniMultiplier * uniRewardInfo.accTokenPerShare / 1e12 - user.uniRewardDebt;
             if (pending > 0) {
-                user.uniStakingAccuralPending += pending;
+                user.uniRewardPending += pending;
             }
         }
-        if (_amount > 0) {
-            user.uniStakingAmount += _amount;
-            poolInfo.stakeAmount += _amount;
-        }
-        user.uniStakingRewardDebt = user.uniStakingAmount * poolInfo.accTokenPerShare / 1e12;
+        user.uniRewardDebt = user.uniAmount * user.uniMultiplier * uniRewardInfo.accTokenPerShare / 1e12;
     }
-    function withdrawStaking(UserMiningInfo storage user, address staking, uint256 _amount) private {
-        require(user.stakingAmount >= _amount, "withdraw: not enough!");
-        IStaking(staking).withdraw(_amount);
-        uint256 accTokenPerShare = IStaking(staking).accTokenPerShare();
-        uint256 pending = user.stakingAmount * accTokenPerShare / 1e12 - user.stakingRewardDebt;
-        if (pending > 0) {
-            user.stakingPending = user.stakingPending + pending;
+    function withdrawMining(
+        UserMiningInfo storage user
+    ) private returns(
+        uint256 pledgeAmount
+    ) {
+        updateMiningInfo(user);
+        uint256 uniAmount = user.uniAmount;
+        pledgeAmount = user.pledgeAmount;
+        if (uniAmount > 0 || pledgeAmount > 0) {
+            user.pledgePending += pledgeAmount;
+            user.uniAmount = 0;
+            user.pledgeAmount = 0;
+            user.uniRewardDebt = 0;
         }
-        if (_amount > 0) {
-            user.stakingAmount = user.stakingAmount - _amount;
-            user.stakingPending = user.stakingPending + _amount;
-        }
-        user.stakingRewardDebt = user.stakingAmount * accTokenPerShare / 1e12;
     }
-    function withdrawUniStaking(UserMiningInfo storage user, uint256 _amount) private {
-        UniStakingPoolInfo storage poolInfo = uniStakingPoolInfo[user.tokenUni];
-        require(user.uniStakingAmount >= _amount, "withdraw: not enough!");
-        updateUniPool(poolInfo);
-        uint256 pending = user.uniStakingAmount * poolInfo.accTokenPerShare / 1e12 - user.uniStakingRewardDebt;
-        if (pending > 0) {
-            user.uniStakingAccuralPending += pending;
-        }
-        if (_amount > 0) {
-            user.uniStakingAmount = user.uniStakingAmount - _amount;
-            poolInfo.stakeAmount = poolInfo.stakeAmount - _amount;
-            // we do not add _amount to uniStakingAccuralPending because _amount will be added in uniswap remainToken
-        }
-        user.uniStakingRewardDebt = user.uniStakingAmount * poolInfo.accTokenPerShare / 1e12;
-    }
-    function collectStaking(
+    function collectMining(
         address recipient,
-        UserMiningInfo storage user,
-        address staking,
-        uint256 limit
-    ) private returns(uint256 collected) {
-        IStaking(staking).withdraw(0);
-        uint256 accTokenPerShare = IStaking(staking).accTokenPerShare();
-        uint256 pending = user.stakingAmount * accTokenPerShare / 1e12 - user.stakingRewardDebt;
-        if(pending > 0) {
-            user.stakingPending = user.stakingPending + pending;
-        }
-        if (limit == 0) {
-            limit = user.stakingPending;
-        }
-        if (limit > user.stakingPending) {
-            limit = user.stakingPending;
-        }
-        collected = 0;
-        if (limit > 0) {
-            collected = IStaking(staking).collect(recipient, limit);
-            user.stakingPending -= limit;
-        }
-    }
-    function collectUniStaking(
-        address recipient,
-        UserMiningInfo storage user,
-        uint256 limit
-    ) private returns(uint256 collected) {
-        withdrawUniStaking(user, 0);
-        if (limit == 0) {
-            limit = user.uniStakingAccuralPending;
-        }
-        if (limit > user.uniStakingAccuralPending) {
-            limit = user.uniStakingAccuralPending;
-        }
-        collected = limit;
-        if (collected > 0) {
-            UniStakingPoolInfo memory poolInfo = uniStakingPoolInfo[user.tokenUni];
-            address tokenUniProvider = poolInfo.tokenProvider;
-            IERC20(user.tokenUni).safeTransferFrom(tokenUniProvider, recipient, collected);
+        UserMiningInfo storage user
+    ) private returns(
+        uint256 uniReward,
+        uint256 pledge
+    ) {
+        updateMiningInfo(user);
+        uniReward = user.uniRewardPending;
+        pledge = user.pledgePending;
+        if (uniReward > 0 || pledge > 0) {
+            user.uniRewardPending = 0;
+            user.pledgePending = 0;
+            if (uniReward > 0) {
+                IERC20(uniRewardInfo.token).safeTransferFrom(uniRewardInfo.provider, recipient, uniReward);
+            }
+            if (pledge > 0) {
+                IERC20(tokenPledge).safeTransfer(recipient, pledge);
+            }
         }
     }
     function getTickPrice(
@@ -241,16 +213,16 @@ contract MiningNPL is Ownable{
     }
     function getTickRange(
         address tokenUni,
-        address tokenStaking,
+        address tokenPledge,
         uint24 fee
     ) private view returns(TickRange memory tickRange) {
-        address pool = IUniswapV3Factory(uniFactory).getPool(tokenStaking, tokenUni, fee);
+        address pool = IUniswapV3Factory(uniFactory).getPool(tokenPledge, tokenUni, fee);
         require(pool != address(0), "No Uniswap Pool!");
         int24 tick;
         (tick, tickRange.sqrtPriceX96) = getTickPrice(pool);
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(fee);
-        if (tokenUni < tokenStaking) {
-            // price is tokenStaking / tokenUni
+        if (tokenUni < tokenPledge) {
+            // price is tokenPledge / tokenUni
             // tokenUni is X
             tickRange.tickLeft = tick + 1;
             uint256 sqrtDoublePriceX96 = uint256(tickRange.sqrtPriceX96) * sqrt2A / sqrt2B;
@@ -259,7 +231,7 @@ contract MiningNPL is Ownable{
             tickRange.tickLeft = tickUpper(tickRange.tickLeft, tickSpacing);
             tickRange.tickRight = tickUpper(tickRange.tickRight, tickSpacing);
         } else {
-            // price is tokenUni / tokenStaking
+            // price is tokenUni / tokenPledge
             // tokenUni is Y
             tickRange.tickRight = tick;
             uint256 sqrtHalfPriceX96 = uint256(tickRange.sqrtPriceX96) * sqrt2B / sqrt2A;
@@ -270,23 +242,23 @@ contract MiningNPL is Ownable{
         }
         require(tickRange.tickLeft < tickRange.tickRight, "L<R");
     }
-    function getAmountStaking(
+    function getAmountPledge(
         address tokenUni,
-        address tokenStaking,
+        address tokenPledge,
         uint160 sqrtPriceX96,
         uint256 amountUni
-    ) private pure returns(uint256 amountStaking) {
+    ) private pure returns(uint256 amountPledge) {
         uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, Q96);
-        if (tokenUni < tokenStaking) {
-            // price is tokenStaking / tokenUni
-            amountStaking = MulDivMath.mulDivCeil(amountUni, priceX96, Q96);
+        if (tokenUni < tokenPledge) {
+            // price is tokenPledge / tokenUni
+            amountPledge = MulDivMath.mulDivCeil(amountUni, priceX96, Q96);
         } else {
-            amountStaking = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
+            amountPledge = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
         }
     }
     function mintUniswapParam(
         address tokenUni, 
-        address tokenStaking, 
+        address tokenPledge, 
         uint256 amountUni, 
         uint24 fee, 
         int24 tickLeft, 
@@ -298,15 +270,15 @@ contract MiningNPL is Ownable{
         params.tickUpper = tickRight;
         params.deadline = deadline;
         params.recipient = address(this);
-        if (tokenUni < tokenStaking) {
+        if (tokenUni < tokenPledge) {
             params.token0 = tokenUni;
-            params.token1 = tokenStaking;
+            params.token1 = tokenPledge;
             params.amount0Desired = amountUni;
             params.amount1Desired = 0;
             params.amount0Min = 1;
             params.amount1Min = 0;
         } else {
-            params.token0 = tokenStaking;
+            params.token0 = tokenPledge;
             params.token1 = tokenUni;
             params.amount0Desired = 0;
             params.amount1Desired = amountUni;
@@ -334,50 +306,36 @@ contract MiningNPL is Ownable{
         params.amount1Min = 0;
         params.deadline = deadline;
     }
-    struct MintParams {
-        address tokenUni;
-        address tokenStaking;
-        uint24 fee;
-        uint256 amountUni;
-        uint256 deadline;
-    }
+    
     function mint(
-        MintParams calldata params
+        uint256 amountUni,
+        uint256 uniMultiplier,
+        uint256 deadline
     ) external returns(uint256 userMiningID){
-        require(params.tokenUni != weth, "Weth Not Support Now!");
-        require(params.tokenStaking != weth, "Weth Not Support Now!");
-        require(params.tokenUni != params.tokenStaking, "Same Token!");
-        address staking = stakingPool[params.tokenStaking];
-        require(staking != address(0), "No Staking Pool!");
-        UniStakingPoolInfo storage uniPoolInfo = uniStakingPoolInfo[params.tokenUni];
-        require(uniPoolInfo.inited, "No Uni Staking Pool!");
+        
+        IERC20(tokenUni).safeTransferFrom(address(msg.sender), address(this), amountUni);
 
-        IERC20(params.tokenUni).safeTransferFrom(address(msg.sender), address(this), params.amountUni);
-
-        TickRange memory tickRange = getTickRange(params.tokenUni, params.tokenStaking, params.fee);
-        uint256 amountStaking = getAmountStaking(params.tokenUni, params.tokenStaking, tickRange.sqrtPriceX96, params.amountUni);
-        IERC20(params.tokenStaking).safeTransferFrom(address(msg.sender), address(this), amountStaking);
+        TickRange memory tickRange = getTickRange(tokenUni, tokenPledge, fee);
+        uint256 amountPledge = getAmountPledge(tokenUni, tokenPledge, tickRange.sqrtPriceX96, amountUni);
+        IERC20(tokenPledge).safeTransferFrom(address(msg.sender), address(this), amountPledge);
 
         userMiningID = userMiningNum;
         userMiningNum ++;
         UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
-        miningInfo.tokenUni = params.tokenUni;
-        miningInfo.tokenStaking = params.tokenStaking;
-        depositStaking(miningInfo, staking, amountStaking);
-
-        IERC20(params.tokenUni).safeApprove(nftManager, params.amountUni);
+        
+        IERC20(tokenUni).safeApprove(nftManager, amountUni);
         INonfungiblePositionManager.MintParams memory uniParams = mintUniswapParam(
-            params.tokenUni,
-            params.tokenStaking,
-            params.amountUni,
-            params.fee,
+            tokenUni,
+            tokenPledge,
+            amountUni,
+            fee,
             tickRange.tickLeft,
             tickRange.tickRight,
-            params.deadline
+            deadline
         );
         uint256 actualAmountUni;
         
-        if (params.tokenUni < params.tokenStaking) {
+        if (tokenUni < tokenPledge) {
             uint256 amount1;
             (
                 miningInfo.uniPositionID,
@@ -385,7 +343,7 @@ contract MiningNPL is Ownable{
                 actualAmountUni,
                 amount1
             ) = INonfungiblePositionManager(nftManager).mint(uniParams);
-            require(actualAmountUni <= params.amountUni, "Uniswap ActualUni Exceed!");
+            require(actualAmountUni <= amountUni, "Uniswap ActualUni Exceed!");
             require(amount1 == 0, "Uniswap No AmountStaking!");
         } else {
             uint256 amount0;
@@ -395,51 +353,48 @@ contract MiningNPL is Ownable{
                 amount0,
                 actualAmountUni
             ) = INonfungiblePositionManager(nftManager).mint(uniParams);
-            require(actualAmountUni <= params.amountUni, "Uniswap ActualUni Exceed!");
+            require(actualAmountUni <= amountUni, "Uniswap ActualUni Exceed!");
             require(amount0 == 0, "Uniswap No AmountStaking!");
         }
-        IERC20(params.tokenUni).safeApprove(nftManager, 0);
-        if (actualAmountUni < params.amountUni) {
+        IERC20(tokenUni).safeApprove(nftManager, 0);
+        if (actualAmountUni < amountUni) {
             // refund
-            IERC20(params.tokenUni).safeTransfer(address(msg.sender), params.amountUni - actualAmountUni);
+            IERC20(tokenUni).safeTransfer(address(msg.sender), amountUni - actualAmountUni);
         }
-        depositUniStaking(miningInfo, actualAmountUni);
+        newMiningInfo(miningInfo, amountPledge, amountUni, uniMultiplier);
 
-        emit Mint(userMiningID, address(msg.sender), actualAmountUni, amountStaking);
+        emit Mint(userMiningID, address(msg.sender), actualAmountUni, amountPledge);
     }
     function collect(
-        uint256 userMiningID, address recipient
-    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking)
+        uint256 userMiningID, 
+        address recipient
+    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountPledge, uint256 amountUniReward)
     {
         UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
-        
-        uint256 stakingCollect = collectStaking(recipient, miningInfo, stakingPool[miningInfo.tokenStaking], 0);
-        uint256 uniCollect = collectUniStaking(recipient, miningInfo, 0);
+
+        (uint256 amountUniReward, uint256 pledge) = collectMining(recipient, miningInfo);
+
         INonfungiblePositionManager.CollectParams memory params = collectUniswapParam(
             miningInfo.uniPositionID,
             recipient
         );
 
-        if (miningInfo.tokenUni < miningInfo.tokenStaking) {
-            (amountUni, amountStaking) = INonfungiblePositionManager(nftManager).collect(params);
+        if (tokenUni < tokenPledge) {
+            (amountUni, amountPledge) = INonfungiblePositionManager(nftManager).collect(params);
         } else {
-            (amountStaking, amountUni) = INonfungiblePositionManager(nftManager).collect(params);
+            (amountPledge, amountUni) = INonfungiblePositionManager(nftManager).collect(params);
         }
-        
-        amountUni += uniCollect;
-        amountStaking += stakingCollect;
+        amountPledge += pledge;
 
-        emit Collect(userMiningID, recipient, amountUni, amountStaking);
+        emit Collect(userMiningID, recipient, amountUni, amountPledge, amountUniReward);
     }
     function withdraw(
         uint256 userMiningID,
         uint256 deadline
-    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountStaking) {
+    ) external checkMiningOwner(userMiningID) returns(uint256 amountUni, uint256 amountPledge) {
         UserMiningInfo storage miningInfo = userMiningInfo[userMiningID];
 
-        uint256 withdrawFromStaking = miningInfo.stakingAmount;
-        withdrawStaking(miningInfo, stakingPool[miningInfo.tokenStaking], withdrawFromStaking);
-        withdrawUniStaking(miningInfo, miningInfo.uniStakingAmount);
+        uint256 pledge = withdrawMining(miningInfo);
 
         INonfungiblePositionManager.DecreaseLiquidityParams memory params = withdrawUniswapParam(
             miningInfo.uniPositionID,
@@ -447,14 +402,14 @@ contract MiningNPL is Ownable{
             deadline
         );
 
-        if (miningInfo.tokenUni < miningInfo.tokenStaking) {
-            (amountUni, amountStaking) = INonfungiblePositionManager(nftManager).decreaseLiquidity(params);
+        if (tokenUni < tokenPledge) {
+            (amountUni, amountPledge) = INonfungiblePositionManager(nftManager).decreaseLiquidity(params);
         } else {
-            (amountStaking, amountUni) = INonfungiblePositionManager(nftManager).decreaseLiquidity(params);
+            (amountPledge, amountUni) = INonfungiblePositionManager(nftManager).decreaseLiquidity(params);
         }
         miningInfo.uniLiquidity = 0;
-        // we donot involve miningInfo.uniStakingAmount, because the amount has been involved in uniswap
-        amountStaking += withdrawFromStaking;
-        emit Withdraw(userMiningID, amountUni, amountStaking);
+
+        amountPledge += pledge;
+        emit Withdraw(userMiningID, amountUni, amountPledge);
     }
 }
