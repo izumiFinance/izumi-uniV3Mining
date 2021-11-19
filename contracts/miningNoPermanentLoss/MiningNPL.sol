@@ -104,17 +104,21 @@ contract MiningNPL is Ownable{
         if (block.number <= lastRewardBlock) {
             return;
         }
-        if (block.number > rewardInfo.endBlock) {
+        if (lastRewardBlock >= rewardInfo.endBlock) {
             return;
+        }
+        uint256 currBlockNumber = block.number;
+        if (currBlockNumber > rewardInfo.endBlock) {
+            currBlockNumber = rewardInfo.endBlock;
         }
         if (totalVLiquidity == 0) {
-            lastRewardBlock = block.number;
+            lastRewardBlock = currBlockNumber;
             return;
         }
-        uint256 multiplier = (block.number - lastRewardBlock) * rewardInfo.BONUS_MULTIPLIER;
+        uint256 multiplier = (currBlockNumber - lastRewardBlock) * rewardInfo.BONUS_MULTIPLIER;
         uint256 tokenReward = multiplier * rewardInfo.tokenPerBlock;
         accRewardPerShareX128 += MulDivMath.mulDivFloor(tokenReward, Q128, totalVLiquidity);
-        lastRewardBlock = block.number;
+        lastRewardBlock = currBlockNumber;
     }
 
     function _newMiningInfo(MiningInfo storage miningInfo, uint256 amountLock, uint256 vLiquidity) private {
