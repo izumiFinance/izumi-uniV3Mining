@@ -357,6 +357,8 @@ contract MiningNPL is Ownable{
         uint256 uniMultiplier,
         uint256 deadline
     ) external returns(uint256 miningID){
+
+        require(uniMultiplier < 3, "M<3");
         
         IERC20(tokenUni).safeTransferFrom(address(msg.sender), address(this), amountUni);
 
