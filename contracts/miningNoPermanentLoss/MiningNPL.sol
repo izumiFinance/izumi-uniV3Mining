@@ -1,10 +1,12 @@
 pragma solidity ^0.8.4;
 import "./utils.sol";
 import "./Staking.sol";
+import "./AmountMath.sol";
 import "./LogPowMath.sol";
 import "./MulDivMath.sol";
 import "./interfaces.sol";
 import '@openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "hardhat/console.sol";
 
 contract MiningNPL is Ownable{
@@ -19,6 +21,7 @@ contract MiningNPL is Ownable{
 
         uint256 uniPositionID;
         uint128 uniLiquidity;
+        bool isUniPositionIDExternal;
     }
     
     address public tokenLock;
@@ -46,8 +49,7 @@ contract MiningNPL is Ownable{
     address public uniFactory;
     uint256 internal constant sqrt2A = 141421;
     uint256 internal constant sqrt2B = 100000;
-    uint256 internal constant Q96 = 0x1000000000000000000000000;
-    uint256 internal constant Q128 = 0x100000000000000000000000000000000;
+    
     mapping (uint256 => address) public miningOwner;
     mapping (uint256 => MiningInfo) public miningInfos;
     mapping(address => EnumerableSet.UintSet) private addr2MiningIDs;
@@ -117,7 +119,7 @@ contract MiningNPL is Ownable{
         }
         uint256 multiplier = (currBlockNumber - lastRewardBlock) * rewardInfo.BONUS_MULTIPLIER;
         uint256 tokenReward = multiplier * rewardInfo.tokenPerBlock;
-        accRewardPerShareX128 += MulDivMath.mulDivFloor(tokenReward, Q128, totalVLiquidity);
+        accRewardPerShareX128 += MulDivMath.mulDivFloor(tokenReward, FixedPoints.Q128, totalVLiquidity);
         lastRewardBlock = currBlockNumber;
     }
 
@@ -147,7 +149,7 @@ contract MiningNPL is Ownable{
         amountReward = MulDivMath.mulDivFloor(
             miningInfo.vLiquidity, 
             accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
-            Q128
+            FixedPoints.Q128
         );
     }
 
@@ -177,7 +179,7 @@ contract MiningNPL is Ownable{
         amountReward = MulDivMath.mulDivFloor(
             miningInfo.vLiquidity,
             accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
-            Q128
+            FixedPoints.Q128
         );
         if (amountReward > 0) {
             if (!emergency) {
@@ -300,12 +302,12 @@ contract MiningNPL is Ownable{
         uint160 sqrtPriceX96,
         uint256 amountUni
     ) private view returns(uint256 amountLock) {
-        uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, Q96);
+        uint256 priceX96 = MulDivMath.mulDivCeil(sqrtPriceX96, sqrtPriceX96, FixedPoints.Q96);
         if (tokenUni < tokenLock) {
             // price is tokenLock / tokenUni
-            amountLock = MulDivMath.mulDivCeil(amountUni, priceX96, Q96);
+            amountLock = MulDivMath.mulDivCeil(amountUni, priceX96, FixedPoints.Q96);
         } else {
-            amountLock = MulDivMath.mulDivCeil(amountUni, Q96, priceX96);
+            amountLock = MulDivMath.mulDivCeil(amountUni, FixedPoints.Q96, priceX96);
         }
     }
     function _mintUniswapParam(
@@ -355,6 +357,86 @@ contract MiningNPL is Ownable{
         params.amount1Min = 0;
         params.deadline = deadline;
     }
+
+    struct PositionData {
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+    }
+
+    function _getPositionData(uint256 uniPositionID) private view returns(PositionData memory posData) {
+        (
+            uint96 nonce,
+            address operator,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        ) = INonfungiblePositionManager(nftManager).positions(uniPositionID);
+        posData.token0 = token0;
+        posData.token1 = token1;
+        posData.fee = fee;
+        posData.tickLower = tickLower;
+        posData.tickUpper = tickUpper;
+        posData.liquidity = liquidity;
+    }
+
+    function _checkNFTAndGetAmountUni(
+        uint256 uniPositionID, TickRange memory requiredTickRange
+    ) private view returns(uint256 amountUni) {
+        PositionData memory posData = _getPositionData(uniPositionID);
+        // range of nft should cover required range
+        require(posData.tickLower < posData.tickUpper, "L<R");
+        require(posData.tickLower <= requiredTickRange.tickLeft, "TL");
+        require(posData.tickUpper >= requiredTickRange.tickRight, "TU");
+        // liquidity of nft should >0
+        require(posData.liquidity > 0, "L>0");
+
+        uint160 sqrtPriceAX96 = LogPowMath.getSqrtPrice(requiredTickRange.tickLeft);
+        uint160 sqrtPriceBX96 = LogPowMath.getSqrtPrice(requiredTickRange.tickRight);
+        if (tokenUni < tokenLock) {
+            // tokenUni is token0
+            amountUni = AmountMath.getAmount0ForLiquidity(sqrtPriceAX96, sqrtPriceBX96, posData.liquidity);
+        } else {
+            // tokenUni is token1
+            amountUni = AmountMath.getAmount1ForLiquidity(sqrtPriceAX96, sqrtPriceBX96, posData.liquidity);
+        }
+    }
+
+    function mintWithExistingNFT(
+        uint256 uniPositionID,
+        uint256 uniMultiplier
+    ) external returns(uint256 miningID) {
+
+        require(uniMultiplier < 3, "M<3");
+        IERC721(nftManager).safeTransferFrom(msg.sender, address(this), uniPositionID);
+
+        TickRange memory tickRange = _getTickRange();
+        uint256 amountUni = _checkNFTAndGetAmountUni(uniPositionID, tickRange);
+        uint256 amountLock = _getAmountLock(tickRange.sqrtPriceX96, amountUni * uniMultiplier);
+
+        IERC20(tokenLock).safeTransferFrom(address(msg.sender), address(this), amountLock);
+
+        miningID = miningNum ++;
+        MiningInfo storage miningInfo = miningInfos[miningID];
+        miningInfo.isUniPositionIDExternal = true;
+        
+        _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
+
+        addr2MiningIDs[msg.sender].add(miningID);
+        miningOwner[miningID] = msg.sender;
+
+        emit Mint(miningID, address(msg.sender), amountUni, amountLock);
+    }
     
     function mint(
         uint256 amountUni,
@@ -367,7 +449,7 @@ contract MiningNPL is Ownable{
         IERC20(tokenUni).safeTransferFrom(address(msg.sender), address(this), amountUni);
 
         TickRange memory tickRange = _getTickRange();
-        uint256 amountLock = _getAmountLock(tickRange.sqrtPriceX96, amountUni);
+        uint256 amountLock = _getAmountLock(tickRange.sqrtPriceX96, amountUni * uniMultiplier);
         IERC20(tokenLock).safeTransferFrom(address(msg.sender), address(this), amountLock);
 
         miningID = miningNum ++;
@@ -381,6 +463,8 @@ contract MiningNPL is Ownable{
             deadline
         );
         uint256 actualAmountUni;
+
+        miningInfo.isUniPositionIDExternal = false;
         
         if (tokenUni < tokenLock) {
             uint256 amount1;
@@ -408,7 +492,7 @@ contract MiningNPL is Ownable{
             // refund
             IERC20(tokenUni).safeTransfer(address(msg.sender), amountUni - actualAmountUni);
         }
-        _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
+        _newMiningInfo(miningInfo, amountLock, actualAmountUni * uniMultiplier);
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
@@ -420,6 +504,9 @@ contract MiningNPL is Ownable{
         address recipient
     ) external checkMiningOwner(miningID) returns(uint256 amountUni, uint256 amountLock, uint256 amountReward)
     {
+        if (recipient == address(0)) {
+            recipient = msg.sender;
+        }
         MiningInfo storage miningInfo = miningInfos[miningID];
 
         amountReward = _collect(recipient, miningInfo, false);
@@ -443,29 +530,33 @@ contract MiningNPL is Ownable{
         uint256 deadline,
         bool emergency
     ) external checkMiningOwner(miningID) returns(uint256 amountUni, uint256 amountLock, uint256 amountReward) {
-        
+        if (recipient == address(0)) {
+            recipient = msg.sender;
+        }
         MiningInfo storage miningInfo = miningInfos[miningID];
 
-        INonfungiblePositionManager.DecreaseLiquidityParams memory decUniParams = _withdrawUniswapParam(
-            miningInfo.uniPositionID,
-            miningInfo.uniLiquidity,
-            deadline
-        );
+        uint256 amountUniFromSwap = 0;
+        uint256 amountLockFromSwap = 0;
 
-        INonfungiblePositionManager.CollectParams memory collectUniParams = _collectUniswapParam(
-            miningInfo.uniPositionID,
-            recipient
-        );
-
-        uint256 amountUniFromSwap;
-        uint256 amountLockFromSwap;
-
-        if (tokenUni < tokenLock) {
-            INonfungiblePositionManager(nftManager).decreaseLiquidity(decUniParams);
-            (amountUniFromSwap, amountLockFromSwap) = INonfungiblePositionManager(nftManager).collect(collectUniParams);
+        if (!miningInfo.isUniPositionIDExternal) {
+            INonfungiblePositionManager.DecreaseLiquidityParams memory decUniParams = _withdrawUniswapParam(
+                miningInfo.uniPositionID,
+                miningInfo.uniLiquidity,
+                deadline
+            );
+            INonfungiblePositionManager.CollectParams memory collectUniParams = _collectUniswapParam(
+                miningInfo.uniPositionID,
+                recipient
+            );
+            if (tokenUni < tokenLock) {
+                INonfungiblePositionManager(nftManager).decreaseLiquidity(decUniParams);
+                (amountUniFromSwap, amountLockFromSwap) = INonfungiblePositionManager(nftManager).collect(collectUniParams);
+            } else {
+                INonfungiblePositionManager(nftManager).decreaseLiquidity(decUniParams);
+                (amountLockFromSwap, amountUniFromSwap) = INonfungiblePositionManager(nftManager).collect(collectUniParams);
+            }
         } else {
-            INonfungiblePositionManager(nftManager).decreaseLiquidity(decUniParams);
-            (amountLockFromSwap, amountUniFromSwap) = INonfungiblePositionManager(nftManager).collect(collectUniParams);
+            IERC721(nftManager).safeTransferFrom(address(this), recipient, miningInfo.uniPositionID);
         }
         miningInfo.uniLiquidity = 0;
 
