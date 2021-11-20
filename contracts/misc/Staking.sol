@@ -1,6 +1,8 @@
-
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.4;
-import "./utils.sol";
+
+import "../utils.sol";
+
 interface IStaking {
     function token() external view returns(address);
     function accTokenPerShare() external view returns (uint256);

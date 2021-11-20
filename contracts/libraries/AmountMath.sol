@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
 import "./FixedPoints.sol";
 import "./MulDivMath.sol";
+
 library AmountMath {
     function getAmount0ForLiquidity(
         uint160 sqrtRatioAX96,
