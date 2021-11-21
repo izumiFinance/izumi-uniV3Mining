@@ -19,33 +19,48 @@ contract MiningOneSide is Ownable, Multicall {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
+    struct RewardInfo {
+        // token to reward
+        address token;
+        // provider to provide reward
+        address provider;
+        // tokenPerBlock*BONUS_MULTIPLIER is actual total amount of this token generated per block, during (startBlock, endBlock]
+        uint256 tokenPerBlock;
+        uint256 endBlock;
+        uint256 startBlock;
+        // set by owner, usually 1, can be modified by owner in the future versions
+        uint256 BONUS_MULTIPLIER;
+    }
+    RewardInfo public rewardInfo;
+    // sum of vLiquidity of all MiningInfos
+    uint256 totalVLiquidity;
+    // accRewardPerShare is amount of reward per unit vLiquidity from startBlock to min{lastRewardBlock, endBlock}
+    // usually accRewardPerShare is not an int number, accRewardPerShareX128 means a 128-bit fixed point number
+    uint256 accRewardPerShareX128;
+    uint256 lastRewardBlock;
+
     struct MiningInfo {
+        // amount of tokenLock user locked in MiningOneSide
         uint256 amountLock;
+        // virtual liquidity, which is equal to uniMultiplier * amountUni
+        // vLiquidity * accRewardPerShareX128 / 2**128 is reward amount of this mining (see 'accRewardPerShareX128')
         uint256 vLiquidity;
+        // value of 'accRewardPerShareX128' when latest update MiningInfo
         uint256 lastTouchAccRewardPerShareX128;
+        // NFT ID of uniswap
         uint256 uniPositionID;
+        // liquidity in uniswap of NFT 'uniPositionID'
         uint128 uniLiquidity;
+        // isUniPositionIDExternal is true, means user deposit his/her NFT (with tokenid of uniPositionID)
+        //    token when calling mint(...)
+        // isUniPositionIDExternal is false, means user deposit tokenUni to this mining contract and this contract will
+        //    generate a uniswap NFT (id will be record in 'uniPositionID')
         bool isUniPositionIDExternal;
     }
 
     address public tokenLock;
     address public tokenUni;
     uint24 public fee;
-
-    struct RewardInfo {
-        address token;
-        address provider;
-        uint256 tokenPerBlock;
-        uint256 endBlock;
-        uint256 startBlock;
-        uint256 BONUS_MULTIPLIER;
-    }
-
-    uint256 totalVLiquidity;
-    uint256 accRewardPerShareX128;
-    uint256 lastRewardBlock;
-
-    RewardInfo public rewardInfo;
 
     uint256 public miningNum = 0;
 
@@ -675,6 +690,18 @@ contract MiningOneSide is Ownable, Multicall {
         emit Collect(miningID, recipient, amountUni, amountLock, amountReward);
     }
 
+    /// @dev Call this interface to withdraw tokenLock with its reward (tokenReward), and deposited (tokenUni/uniNFT) with its fee
+    /// @param miningID id of mining to withdraw
+    /// @param recipient address specified to receive all tokens(including NFT of uniswap), if recipient is zero, 
+    ///    all tokens(including NFT of uniswap) will be transfered to 'msg.sender'
+    /// @param deadline deadline to call "decreaseLiquidity" of uniswap
+    /// @param emergency if emergency is true and there is no enough tokenReward from its provider for user's reward,
+    ///    withdraw other tokens(including NFT of uniswap), and collect reward as much as possible
+    ///    when emergency is false, transaction will be reverted if tokenReward is not enough
+    /// @return amountUni amount of tokenUni refund to address 'recipient' or msg.sender,
+    ///    if user deposit NFT instead of tokenUni when calling mint(...), amountUni will be zero
+    /// @return amountLock amount of tokenLock refund to address 'recipient' or msg.sender
+    /// @return amountReward amount of tokenReward refund to address 'recipient' or msg.sender
     function withdraw(
         uint256 miningID,
         address recipient,
