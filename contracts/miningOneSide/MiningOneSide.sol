@@ -58,27 +58,54 @@ contract MiningOneSide is Ownable, Multicall {
         bool isUniPositionIDExternal;
     }
 
+    // token to lock in this mining contract
     address public tokenLock;
+    // token to send to uniswap
     address public tokenUni;
+    // swap fee of (tokenUni, tokenLock) in uniswap
+    // if fee is 3000, means swap fee is 0.3%
     uint24 public fee;
-
+    
+    // total number of MiningInfo objects (newly created, collected, withdrawed) in this contract
+    // the ID of MiningInfo is [0, miningNum)
     uint256 public miningNum = 0;
 
+    // nonfungibal position manager of uniswap-periphery
     address public nftManager;
+    // factory of uniswap-core
     address public uniFactory;
+
+    // sqrt2A / sqrt2B is sqrt(2)
     uint256 internal constant sqrt2A = 141421;
     uint256 internal constant sqrt2B = 100000;
 
+    // owner address of MiningInfo
+    // each MiningInfo has a unique MiningInfoID
     mapping(uint256 => address) public miningOwner;
+    // MiningInfoID to MiningInfo
     mapping(uint256 => MiningInfo) public miningInfos;
+    // one address may own more than one MiningInfoIDs
     mapping(address => EnumerableSet.UintSet) private addr2MiningIDs;
 
+    /// @dev Emitted when success to call mint(...) or mintWithExistingNFT(...), see ether of these 2 functions to
+    ///    learn more
+    /// @param miningID id to specify newly created MiningInfo
+    /// @param owner address owning the MiningInfo specified by miningID, owner is msg.sender currently
+    /// @param vLiquidity vLiquidity of miningInfo, see MiningInfo
+    /// @param amountLock amount of tokenLock locked from msg.sender, before withdraw, the tokenLock will be locked
+    ///    in this contract
     event Mint(
         uint256 indexed miningID,
         address indexed owner,
         uint256 vLiquidity,
         uint256 amountLock
     );
+    /// @dev Emitted when success to call collect(...), see collect(...) to learn more
+    /// @param miningID id to specify MiningInfo which is collected
+    /// @param recipient address to receive fee of uniswap-nft and reward of mining
+    /// @param amountUni amount of tokenUni (fee from uniswap) received by recipient
+    /// @param amountLock amount of tokenLock (fee from uniswap) received by recipient
+    /// @param amountReward amount of tokenReward (reward of mining) recieved by recipient
     event Collect(
         uint256 indexed miningID,
         address indexed recipient,
@@ -86,6 +113,15 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 amountLock,
         uint256 amountReward
     );
+    /// @dev Emitted when success to call withdraw(...), see withdraw(...) to learn more
+    /// @param miningID id to specify MiningInfo which is withdrawed
+    /// @param recipient address to receive uniswap fee, tokenReward, tokenLocked
+    ///    and tokenUni(or uniswap NFT if the MiningInfo is created by mintWithExistingNFT(...))
+    /// @param amountUni amount of tokenUni received by recipient
+    ///    if the miningID is created by mint(...), amountUni contains uniswap fee and amount of tokenUni deposit
+    ///    if the miningID is created by mintWithExistingNFT(...), amountUni is only uniswap fee
+    /// @param amountLock amount of tokenLock (including fee from uniswap) received by recipient
+    /// @param amountReward amount of tokenReward (reward of mining) recieved by recipient
     event Withdraw(
         uint256 indexed miningID,
         address indexed recipient,
@@ -94,6 +130,12 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 amountReward
     );
 
+    /// @dev contructor of this mining contract
+    /// @param tokenUniAddr address of tokenUni, see tokenUni
+    /// @param tokenLockAddr address of tokenLock, see tokenLock
+    /// @param swapFee fee of uniswap, 3000 means 0.3%, see fee
+    /// @param nfPositionManager nonfungible position manager of uniswap, see nftManager
+    /// @param rewardInfoParams see RewardInfo
     constructor(
         address tokenUniAddr,
         address tokenLockAddr,
@@ -138,6 +180,9 @@ contract MiningOneSide is Ownable, Multicall {
         }
     }
 
+    /// @notice when newly create, collect or withdraw a MiningInfo Object, this function 
+    ///    must be called
+    /// @dev produce reward from lastRewardBlock to min{block.number, endBlock}
     function _updateGlobalReward() private {
         if (block.number <= lastRewardBlock) {
             return;
@@ -177,6 +222,9 @@ contract MiningOneSide is Ownable, Multicall {
         miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
 
+    /// @dev get MiningInfo objs owned by a user
+    /// @param user owner of MiningIDs
+    /// @return list of Mining ID
     function getMiningIDList(address user)
         external
         view
@@ -205,6 +253,8 @@ contract MiningOneSide is Ownable, Multicall {
         );
     }
 
+    /// @dev pending reward of a MiningInfo obj
+    /// @param miningID ID to specify MiningInfo
     function pendingReward(uint256 miningID)
         external
         returns (uint256 amountReward)
@@ -213,6 +263,8 @@ contract MiningOneSide is Ownable, Multicall {
         amountReward = _pendingReward(miningID);
     }
 
+    /// @dev total pending reward of user
+    /// @param user address of owner
     function pendingRewards(address user)
         external
         returns (uint256 amountRewards)
@@ -226,6 +278,15 @@ contract MiningOneSide is Ownable, Multicall {
         }
     }
 
+    /// @dev compute and sending reward of Mining (tokenReward) to user
+    ///    note that this function only deals with status corresponding to reward of mining 
+    ///    and will not influence NFT of the MiningInfo obj
+    /// @param recipient address to receive reward
+    /// @param miningInfo MiningInfo obj owned by user
+    /// @param emergency if emergency is true and there is no enough tokenReward from its provider for user's reward,
+    ///    withdraw other tokens(including NFT of uniswap), and collect reward as much as possible
+    ///    when emergency is false, transaction will be reverted if tokenReward is not enough
+    /// @return amountReward amount of tokenReward sent to recipient
     function _collect(
         address recipient,
         MiningInfo storage miningInfo,
@@ -276,9 +337,23 @@ contract MiningOneSide is Ownable, Multicall {
                 }
             }
         }
+        // collected reward can not be collected again
         miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
 
+    /// @notice this function will be called in the function of withdraw
+    /// @dev collect reward of mining to user, and clear MiningInfo obj,
+    ///    note that this function only deals with status corresponding to reward of mining 
+    ///    and will not influence NFT of the MiningInfo obj
+    /// @param recipient address to receive reward
+    /// @param miningInfo MiningInfo obj owned by user
+    /// @param emergency if emergency is true and there is no enough tokenReward from its provider for user's reward,
+    ///    withdraw other tokens(including NFT of uniswap), and collect reward as much as possible
+    ///    when emergency is false, transaction will be reverted if tokenReward is not enough
+    /// @return amountReward amount of tokenReward sent to recipient
+    /// @return amountLock amount of tokenLock before clear the MiningInfo obj
+    ///    note that amount of deposited tokenUni is not necessary to record, because deposited tokenUni or NFT
+    ///    will be refund from uniswap
     function _withdraw(
         address recipient,
         MiningInfo storage miningInfo,
@@ -344,10 +419,15 @@ contract MiningOneSide is Ownable, Multicall {
     struct TickRange {
         int24 tickLeft;
         int24 tickRight;
-        uint160 sqrtPriceX96;
     }
 
-    function _getTickRange() private view returns (TickRange memory tickRange) {
+    /// @dev get sqrtPrice of pool(tokenUni/tokenSwap/fee)
+    ///    and compute tick range converted from [PriceUni * 0.5, PriceUni]
+    /// @return sqrtPriceX96 current sqrtprice value viewed from uniswap pool, is a 96-bit fixed point number
+    ///    note this value might mean price of tokenLock/tokenUni (if tokenUni < tokenLock)
+    ///    or price of tokenUni / tokenLock (if tokenUni > tokenLock)
+    /// @return tickRange computed tick range
+    function _getPriceAndTickRange() private view returns (uint160 sqrtPriceX96, TickRange memory tickRange) {
         address pool = IUniswapV3Factory(uniFactory).getPool(
             tokenLock,
             tokenUni,
@@ -355,7 +435,7 @@ contract MiningOneSide is Ownable, Multicall {
         );
         require(pool != address(0), "No Uniswap Pool!");
         int24 tick;
-        (tick, tickRange.sqrtPriceX96) = _getTickPrice(pool);
+        (tick, sqrtPriceX96) = _getTickPrice(pool);
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             fee
         );
@@ -363,7 +443,7 @@ contract MiningOneSide is Ownable, Multicall {
             // price is tokenLock / tokenUni
             // tokenUni is X
             tickRange.tickLeft = tick + 1;
-            uint256 sqrtDoublePriceX96 = (uint256(tickRange.sqrtPriceX96) *
+            uint256 sqrtDoublePriceX96 = (uint256(sqrtPriceX96) *
                 sqrt2A) / sqrt2B;
             require(uint160(sqrtDoublePriceX96) == sqrtDoublePriceX96, "2p O");
             tickRange.tickRight = LogPowMath.getLogSqrtPriceFloor(
@@ -375,7 +455,7 @@ contract MiningOneSide is Ownable, Multicall {
             // price is tokenUni / tokenLock
             // tokenUni is Y
             tickRange.tickRight = tick;
-            uint256 sqrtHalfPriceX96 = (uint256(tickRange.sqrtPriceX96) *
+            uint256 sqrtHalfPriceX96 = (uint256(sqrtPriceX96) *
                 sqrt2B) / sqrt2A;
             require(uint160(sqrtHalfPriceX96) == sqrtHalfPriceX96, "p/2 O");
             tickRange.tickLeft = LogPowMath.getLogSqrtPriceFloor(
@@ -387,6 +467,11 @@ contract MiningOneSide is Ownable, Multicall {
         require(tickRange.tickLeft < tickRange.tickRight, "L<R");
     }
 
+    /// @dev compute amount of tokenLock
+    /// @param sqrtPriceX96 sqrtprice value viewed from uniswap pool
+    /// @param amountUni amount of tokenUni user deposits
+    ///    or amount computed corresponding to deposited uniswap NFT
+    /// @return amountLock amount of tokenLock
     function _getAmountLock(uint160 sqrtPriceX96, uint256 amountUni)
         private
         view
@@ -413,6 +498,7 @@ contract MiningOneSide is Ownable, Multicall {
         }
     }
 
+    // fill INonfungiblePositionManager.MintParams struct to call INonfungiblePositionManager.mint(...)
     function _mintUniswapParam(
         uint256 amountUni,
         int24 tickLeft,
@@ -445,6 +531,7 @@ contract MiningOneSide is Ownable, Multicall {
         }
     }
 
+    // fill INonfungiblePositionManager.CollectParams struct to call INonfungiblePositionManager.collect(...)
     function _collectUniswapParam(uint256 uniPositionID, address recipient)
         private
         pure
@@ -456,6 +543,8 @@ contract MiningOneSide is Ownable, Multicall {
         params.amount1Max = 0xffffffffffffffffffffffffffffffff;
     }
 
+    // fill INonfungiblePositionManager.DecreaseLiquidityParams struct 
+    //    to call INonfungiblePositionManager.decreaseLiquidity(...)
     function _withdrawUniswapParam(
         uint256 uniPositionID,
         uint128 liquidity,
@@ -510,6 +599,12 @@ contract MiningOneSide is Ownable, Multicall {
         posData.liquidity = liquidity;
     }
 
+    /// @notice if user call mintWithExistingNFT, this function should be called
+    /// @dev check deposited uniswap nft, and compute corresponding amount of uniToken
+    ///    the deposited nft should cover the requiredTickRange
+    /// @param uniPositionID token id of deposited uniswap nft
+    /// @param requiredTickRange required tick range converted from [0.5 * priceUni, priceUni]
+    /// @return amountUni amount of tokenUni in requiredTickRange
     function _checkNFTAndGetAmountUni(
         uint256 uniPositionID,
         TickRange memory requiredTickRange
@@ -545,6 +640,12 @@ contract MiningOneSide is Ownable, Multicall {
         }
     }
 
+    /// @dev Call this interface to mint with existing uniswap NFT
+    /// @param uniPositionID token id of the NFT
+    /// @param uniMultiplier multiplier of uniAmount, vLiquidity = uniMultiplier * amountUni
+    ///    amountUni is computed corresponding to [0.5 * PriceUni, PriceUni] and liquidity of the NFT
+    ///    note that amount of tokenLock will also be multiplied
+    /// @return miningID is the id of MiningInfo obj created during this calling
     function mintWithExistingNFT(uint256 uniPositionID, uint256 uniMultiplier)
         external
         returns (uint256 miningID)
@@ -556,10 +657,10 @@ contract MiningOneSide is Ownable, Multicall {
             uniPositionID
         );
 
-        TickRange memory tickRange = _getTickRange();
+        (uint160 sqrtPriceX96, TickRange memory tickRange) = _getPriceAndTickRange();
         uint256 amountUni = _checkNFTAndGetAmountUni(uniPositionID, tickRange);
         uint256 amountLock = _getAmountLock(
-            tickRange.sqrtPriceX96,
+            sqrtPriceX96,
             amountUni * uniMultiplier
         );
 
@@ -571,6 +672,9 @@ contract MiningOneSide is Ownable, Multicall {
 
         miningID = miningNum++;
         MiningInfo storage miningInfo = miningInfos[miningID];
+        // mark isUniPositionIDExternal as true, means the NFT is deposit from user
+        // instead of created by this contract. When user calling withdraw(...) in the future
+        // this contract will refund this NFT
         miningInfo.isUniPositionIDExternal = true;
 
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
@@ -581,6 +685,11 @@ contract MiningOneSide is Ownable, Multicall {
         emit Mint(miningID, address(msg.sender), amountUni, amountLock);
     }
 
+    /// @dev Call this interface to mint with tokenUni
+    /// @param amountUni amount of tokenUni deposited from user
+    /// @param uniMultiplier multiplier of uniAmount, vLiquidity = uniMultiplier * amountUni
+    ///    note that amount of tokenLock will also be multiplied
+    /// @return miningID is the id of MiningInfo obj created during this calling
     function mint(
         uint256 amountUni,
         uint256 uniMultiplier,
@@ -594,9 +703,9 @@ contract MiningOneSide is Ownable, Multicall {
             amountUni
         );
 
-        TickRange memory tickRange = _getTickRange();
+        (uint160 sqrtPriceX96, TickRange memory tickRange) = _getPriceAndTickRange();
         uint256 amountLock = _getAmountLock(
-            tickRange.sqrtPriceX96,
+            sqrtPriceX96,
             amountUni * uniMultiplier
         );
         IERC20(tokenLock).safeTransferFrom(
@@ -617,7 +726,10 @@ contract MiningOneSide is Ownable, Multicall {
                 deadline
             );
         uint256 actualAmountUni;
-
+        // mark isUniPositionIDExternal as false, means the uniswap NFT is created by
+        // this contract. When user calling withdraw(...) in the future
+        // this contract will decrease the liquidity of NFT to 0
+        // and refund corresponding tokenUni and tokenSwap from uniswap
         miningInfo.isUniPositionIDExternal = false;
 
         if (tokenUni < tokenLock) {
@@ -657,6 +769,12 @@ contract MiningOneSide is Ownable, Multicall {
         emit Mint(miningID, address(msg.sender), actualAmountUni, amountLock);
     }
 
+    /// @dev Call this interface to collect reward token and swap fee from uniswap
+    /// @param miningID ID of MiningInfo obj
+    /// @param recipient address to receive reward and swap fee
+    /// @return amountUni amount of tokenUni (fee from uniswap) received by recipient
+    /// @return amountLock amount of tokenLock (fee from uniswap) received by recipient
+    /// @return amountReward amount of tokenReward (reward of mining) recieved by recipient
     function collect(uint256 miningID, address recipient)
         external
         checkMiningOwner(miningID)
@@ -671,6 +789,7 @@ contract MiningOneSide is Ownable, Multicall {
         }
         MiningInfo storage miningInfo = miningInfos[miningID];
 
+        // collect reward of mining
         amountReward = _collect(recipient, miningInfo, false);
 
         INonfungiblePositionManager.CollectParams
@@ -679,6 +798,7 @@ contract MiningOneSide is Ownable, Multicall {
                 recipient
             );
 
+        // collect swap fee from uniswap
         if (tokenUni < tokenLock) {
             (amountUni, amountLock) = INonfungiblePositionManager(nftManager)
                 .collect(params);
@@ -725,6 +845,7 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 amountLockFromSwap = 0;
 
         if (!miningInfo.isUniPositionIDExternal) {
+            // collect swap fee and withdraw tokenUni tokenLock from uniswap
             INonfungiblePositionManager.DecreaseLiquidityParams
                 memory decUniParams = _withdrawUniswapParam(
                     miningInfo.uniPositionID,
@@ -758,6 +879,7 @@ contract MiningOneSide is Ownable, Multicall {
                 );
             }
         } else {
+            // send deposited NFT to user
             IERC721(nftManager).safeTransferFrom(
                 address(this),
                 recipient,
@@ -766,6 +888,7 @@ contract MiningOneSide is Ownable, Multicall {
         }
         miningInfo.uniLiquidity = 0;
 
+        // withdraw mining
         (amountReward, amountLock) = _withdraw(
             recipient,
             miningInfo,
