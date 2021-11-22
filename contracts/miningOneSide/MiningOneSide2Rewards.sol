@@ -27,14 +27,16 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
         address token0;
         // provider to provide reward
         address provider0;
-        // token amount of reward generated per block, during (startBlock, endBlock]
+        // token amount of reward generated per block
+        // in form of 128-bit fixed point number
         uint256 tokenPerBlock0;
 
         // token1 to reward
         address token1;
         // provider to provide reward
         address provider1;
-        // token amount of reward generated per block, during (startBlock, endBlock]
+        // token amount of reward generated per block
+        // in form of 128-bit fixed point number
         uint256 tokenPerBlock1;
     }
     RewardInfo public rewardInfo;
@@ -270,16 +272,15 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
             lastRewardBlock = currBlockNumber;
             return;
         }
-        uint256 tokenReward0 = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock0;
-        uint256 tokenReward1 = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock1;
+        
         accRewardPerShare0 += MulDivMath.mulDivFloor(
-            tokenReward0,
-            FixedPoints.Q128,
+            currBlockNumber - lastRewardBlock,
+            rewardInfo.tokenPerBlock0,
             totalVLiquidity
         );
         accRewardPerShare1 += MulDivMath.mulDivFloor(
-            tokenReward1,
-            FixedPoints.Q128,
+            currBlockNumber - lastRewardBlock,
+            rewardInfo.tokenPerBlock1,
             totalVLiquidity
         );
         lastRewardBlock = currBlockNumber;
