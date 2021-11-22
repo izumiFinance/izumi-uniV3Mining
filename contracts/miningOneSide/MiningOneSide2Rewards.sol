@@ -273,14 +273,17 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
             return;
         }
         
+        uint256 amountReward0 = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock0;
         accRewardPerShare0 += MulDivMath.mulDivFloor(
-            currBlockNumber - lastRewardBlock,
-            rewardInfo.tokenPerBlock0,
+            amountReward0,
+            FixedPoints.Q128,
             totalVLiquidity
         );
+        
+        uint256 amountReward1 = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock1;
         accRewardPerShare1 += MulDivMath.mulDivFloor(
-            currBlockNumber - lastRewardBlock,
-            rewardInfo.tokenPerBlock1,
+            amountReward1,
+            FixedPoints.Q128,
             totalVLiquidity
         );
         lastRewardBlock = currBlockNumber;

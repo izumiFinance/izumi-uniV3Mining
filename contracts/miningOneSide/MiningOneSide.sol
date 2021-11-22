@@ -28,8 +28,7 @@ contract MiningOneSide is Ownable, Multicall {
         // provider to provide reward
         address provider;
         // token amount of reward generated per block, during (startBlock, endBlock]
-        // in form of 128-bit fixed point number
-        uint256 tokenPerBlockX128;
+        uint256 tokenPerBlock;
     }
     RewardInfo public rewardInfo;
     
@@ -196,28 +195,28 @@ contract MiningOneSide is Ownable, Multicall {
         rewardInfo.provider = provider;
     }
 
-    function setRewardTokenPerBlock(uint256 tokenPerBlockX128) external onlyOwner {
+    function setRewardTokenPerBlock(uint256 tokenPerBlock) external onlyOwner {
         // update reward to min{block.number, endBlock}
         _updateGlobalReward();
         if (block.number > endBlock) {
-            rewardInfo.tokenPerBlockX128 = 0;
+            rewardInfo.tokenPerBlock = 0;
             endBlock = block.number;
             _updateGlobalReward();
         }
-        rewardInfo.tokenPerBlockX128 = tokenPerBlockX128;
+        rewardInfo.tokenPerBlock = tokenPerBlock;
     }
 
     function setRewardEndBlock(uint256 _endBlock) external onlyOwner {
         require(_endBlock >= block.number, "EndBlock Can't Be Ago");
         // update reward to min{block.number, endBlock}
         _updateGlobalReward();
-        uint256 rewardTokenPerBlock = rewardInfo.tokenPerBlockX128;
+        uint256 rewardTokenPerBlock = rewardInfo.tokenPerBlock;
         if (block.number > endBlock) {
-            rewardInfo.tokenPerBlockX128 = 0;
+            rewardInfo.tokenPerBlock = 0;
             endBlock = block.number;
             _updateGlobalReward();
         }
-        rewardInfo.tokenPerBlockX128 = rewardTokenPerBlock;
+        rewardInfo.tokenPerBlock = rewardTokenPerBlock;
         endBlock = _endBlock;
     }
 
@@ -239,9 +238,10 @@ contract MiningOneSide is Ownable, Multicall {
             lastRewardBlock = currBlockNumber;
             return;
         }
+        uint256 amountReward = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock;
         accRewardPerShareX128 += MulDivMath.mulDivFloor(
-            currBlockNumber - lastRewardBlock,
-            rewardInfo.tokenPerBlockX128,
+            amountReward,
+            FixedPoints.Q128,
             totalVLiquidity
         );
         lastRewardBlock = currBlockNumber;
