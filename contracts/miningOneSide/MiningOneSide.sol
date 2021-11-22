@@ -30,13 +30,12 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 tokenPerBlock;
     }
     RewardInfo public rewardInfo;
-    struct RewardStatus {
-        // accRewardPerShare is amount of reward per unit vLiquidity from startBlock to min{lastRewardBlock, endBlock}
-        // usually accRewardPerShare is not an int number, accRewardPerShareX128 means a 128-bit fixed point number
-        uint256 accRewardPerShareX128;
-        uint256 lastRewardBlock;
-    }
-    RewardStatus public rewardStatus;
+    
+    // accRewardPerShare is amount of reward per unit vLiquidity from startBlock to min{lastRewardBlock, endBlock}
+    // usually accRewardPerShare is not an int number, accRewardPerShareX128 means a 128-bit fixed point number
+    uint256 accRewardPerShareX128;
+    uint256 lastRewardBlock;
+        
     // sum of vLiquidity of all MiningInfos
     uint256 totalVLiquidity;
 
@@ -182,8 +181,8 @@ contract MiningOneSide is Ownable, Multicall {
         endBlock = _endBlock;
 
         totalVLiquidity = 0;
-        rewardStatus.accRewardPerShareX128 = 0;
-        rewardStatus.lastRewardBlock = _startBlock;
+        accRewardPerShareX128 = 0;
+        lastRewardBlock = _startBlock;
     }
 
     modifier checkMiningOwner(uint256 miningID) {
@@ -222,12 +221,12 @@ contract MiningOneSide is Ownable, Multicall {
 
     /// @notice when newly create, collect or withdraw a MiningInfo Object, this function 
     ///    must be called
-    /// @dev produce reward from rewardStatus.lastRewardBlock to min{block.number, endBlock}
+    /// @dev produce reward from lastRewardBlock to min{block.number, endBlock}
     function _updateGlobalReward() private {
-        if (block.number <= rewardStatus.lastRewardBlock) {
+        if (block.number <= lastRewardBlock) {
             return;
         }
-        if (rewardStatus.lastRewardBlock >= endBlock) {
+        if (lastRewardBlock >= endBlock) {
             return;
         }
         uint256 currBlockNumber = block.number;
@@ -235,16 +234,16 @@ contract MiningOneSide is Ownable, Multicall {
             currBlockNumber = endBlock;
         }
         if (totalVLiquidity == 0) {
-            rewardStatus.lastRewardBlock = currBlockNumber;
+            lastRewardBlock = currBlockNumber;
             return;
         }
-        uint256 tokenReward = (currBlockNumber - rewardStatus.lastRewardBlock) * rewardInfo.tokenPerBlock;
-        rewardStatus.accRewardPerShareX128 += MulDivMath.mulDivFloor(
+        uint256 tokenReward = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock;
+        accRewardPerShareX128 += MulDivMath.mulDivFloor(
             tokenReward,
             FixedPoints.Q128,
             totalVLiquidity
         );
-        rewardStatus.lastRewardBlock = currBlockNumber;
+        lastRewardBlock = currBlockNumber;
     }
 
     function _newMiningInfo(
@@ -257,7 +256,7 @@ contract MiningOneSide is Ownable, Multicall {
         miningInfo.amountLock = amountLock;
         miningInfo.vLiquidity = vLiquidity;
         // todo: whether need ceil?
-        miningInfo.lastTouchAccRewardPerShareX128 = rewardStatus.accRewardPerShareX128;
+        miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
 
     /// @dev get MiningInfo objs owned by a user
@@ -286,7 +285,7 @@ contract MiningOneSide is Ownable, Multicall {
         MiningInfo memory miningInfo = miningInfos[miningID];
         amountReward = MulDivMath.mulDivFloor(
             miningInfo.vLiquidity,
-            rewardStatus.accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
+            accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
             FixedPoints.Q128
         );
     }
@@ -333,7 +332,7 @@ contract MiningOneSide is Ownable, Multicall {
         _updateGlobalReward();
         amountReward = MulDivMath.mulDivFloor(
             miningInfo.vLiquidity,
-            rewardStatus.accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
+            accRewardPerShareX128 - miningInfo.lastTouchAccRewardPerShareX128,
             FixedPoints.Q128
         );
         if (amountReward > 0) {
@@ -376,7 +375,7 @@ contract MiningOneSide is Ownable, Multicall {
             }
         }
         // collected reward can not be collected again
-        miningInfo.lastTouchAccRewardPerShareX128 = rewardStatus.accRewardPerShareX128;
+        miningInfo.lastTouchAccRewardPerShareX128 = accRewardPerShareX128;
     }
 
     /// @notice this function will be called in the function of withdraw
