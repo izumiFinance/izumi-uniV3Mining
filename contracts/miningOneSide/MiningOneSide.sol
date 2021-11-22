@@ -10,14 +10,16 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../libraries/AmountMath.sol";
 import "../libraries/LogPowMath.sol";
 import "../libraries/MulDivMath.sol";
+import "../libraries/UniswapOracle.sol";
 
-import "./interfaces.sol";
+import "../uniswap/interfaces.sol";
 import "../utils.sol";
 import "../multicall.sol";
 
 contract MiningOneSide is Ownable, Multicall {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
+    using UniswapOracle for address;
 
     struct RewardInfo {
         // token to reward
@@ -74,6 +76,8 @@ contract MiningOneSide is Ownable, Multicall {
     address public nftManager;
     // factory of uniswap-core
     address public uniFactory;
+    // pool of (tokenUni/tokenLock/fee)
+    address public swapPool;
 
     // sqrt2A / sqrt2B is sqrt(2)
     uint256 internal constant sqrt2A = 141421;
@@ -152,6 +156,13 @@ contract MiningOneSide is Ownable, Multicall {
         require(weth != tokenUniAddr, "weth not supported!");
         require(weth != tokenLockAddr, "weth not supported!");
         uniFactory = INonfungiblePositionManager(nfPositionManager).factory();
+
+        swapPool = IUniswapV3Factory(uniFactory).getPool(
+            tokenLock,
+            tokenUni,
+            fee
+        );
+        require(swapPool != address(0), "No Uniswap Pool!");
 
         rewardInfo = rewardInfoParams;
         lastRewardBlock = rewardInfoParams.startBlock;
@@ -372,24 +383,6 @@ contract MiningOneSide is Ownable, Multicall {
         miningInfo.vLiquidity = 0;
     }
 
-    function _getTickPrice(address pool)
-        private
-        view
-        returns (int24 tick, uint160 sqrtPriceX96)
-    {
-        (
-            uint160 sqrtPriceX96_,
-            int24 tick_,
-            uint16 observationIndex,
-            uint16 observationCardinality,
-            uint16 observationCardinalityNext,
-            uint8 feeProtocol,
-            bool unlocked
-        ) = IUniswapV3Pool(pool).slot0();
-        tick = tick_;
-        sqrtPriceX96 = sqrtPriceX96_;
-    }
-
     function _tickFloor(int24 tick, int24 tickSpacing)
         private
         pure
@@ -428,21 +421,19 @@ contract MiningOneSide is Ownable, Multicall {
     ///    or price of tokenUni / tokenLock (if tokenUni > tokenLock)
     /// @return tickRange computed tick range
     function _getPriceAndTickRange() private view returns (uint160 sqrtPriceX96, TickRange memory tickRange) {
-        address pool = IUniswapV3Factory(uniFactory).getPool(
-            tokenLock,
-            tokenUni,
-            fee
-        );
-        require(pool != address(0), "No Uniswap Pool!");
-        int24 tick;
-        (tick, sqrtPriceX96) = _getTickPrice(pool);
+        (int24 avgTick, uint160 avgSqrtPriceX96, int24 currTick, uint160 currSqrtPriceX96) = swapPool.getAvgTickPriceWithinHour();
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             fee
         );
         if (tokenUni < tokenLock) {
             // price is tokenLock / tokenUni
             // tokenUni is X
-            tickRange.tickLeft = tick + 1;
+            tickRange.tickLeft = currTick + 1;
+            sqrtPriceX96 = currSqrtPriceX96;
+            if (tickRange.tickLeft < avgTick) {
+                tickRange.tickLeft = avgTick;
+                sqrtPriceX96 = avgSqrtPriceX96;
+            }
             uint256 sqrtDoublePriceX96 = (uint256(sqrtPriceX96) *
                 sqrt2A) / sqrt2B;
             require(uint160(sqrtDoublePriceX96) == sqrtDoublePriceX96, "2p O");
@@ -454,7 +445,12 @@ contract MiningOneSide is Ownable, Multicall {
         } else {
             // price is tokenUni / tokenLock
             // tokenUni is Y
-            tickRange.tickRight = tick;
+            tickRange.tickRight = currTick;
+            sqrtPriceX96 = currSqrtPriceX96;
+            if (tickRange.tickRight > avgTick) {
+                tickRange.tickRight = avgTick;
+                sqrtPriceX96 = avgSqrtPriceX96;
+            }
             uint256 sqrtHalfPriceX96 = (uint256(sqrtPriceX96) *
                 sqrt2B) / sqrt2A;
             require(uint160(sqrtHalfPriceX96) == sqrtHalfPriceX96, "p/2 O");
