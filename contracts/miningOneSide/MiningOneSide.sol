@@ -26,12 +26,10 @@ contract MiningOneSide is Ownable, Multicall {
         address token;
         // provider to provide reward
         address provider;
-        // tokenPerBlock*BONUS_MULTIPLIER is actual total amount of this token generated per block, during (startBlock, endBlock]
+        // token amount of reward generated per block, during (startBlock, endBlock]
         uint256 tokenPerBlock;
         uint256 endBlock;
         uint256 startBlock;
-        // set by owner, usually 1, can be modified by owner in the future versions
-        uint256 BONUS_MULTIPLIER;
     }
     RewardInfo public rewardInfo;
     // sum of vLiquidity of all MiningInfos
@@ -180,15 +178,33 @@ contract MiningOneSide is Ownable, Multicall {
         _;
     }
 
-    function setRewardProvider(address rewardProvider) external onlyOwner {
-        rewardInfo.provider = rewardProvider;
+    function setRewardProvider(address provider) external onlyOwner {
+        rewardInfo.provider = provider;
     }
 
-    function setRewardEndBlock(uint256 rewardEndBlock) external onlyOwner {
-        require(block.number <= rewardInfo.endBlock, "Finished!");
-        if (rewardEndBlock >= block.number) {
+    function setRewardTokenPerBlock(uint256 tokenPerBlock) external onlyOwner {
+        // update reward to min{block.number, rewardInfo.endBlock}
+        _updateGlobalReward();
+        if (block.number > rewardInfo.endBlock) {
+            rewardInfo.tokenPerBlock = 0;
             rewardInfo.endBlock = block.number;
+            _updateGlobalReward();
         }
+        rewardInfo.tokenPerBlock = tokenPerBlock;
+    }
+
+    function setRewardEndBlock(uint256 endBlock) external onlyOwner {
+        require(endBlock >= block.number, "EndBlock Can't Be Ago");
+        // update reward to min{block.number, rewardInfo.endBlock}
+        _updateGlobalReward();
+        uint256 rewardTokenPerBlock = rewardInfo.tokenPerBlock;
+        if (block.number > rewardInfo.endBlock) {
+            rewardInfo.tokenPerBlock = 0;
+            rewardInfo.endBlock = block.number;
+            _updateGlobalReward();
+        }
+        rewardInfo.tokenPerBlock = rewardTokenPerBlock;
+        rewardInfo.endBlock = endBlock;
     }
 
     /// @notice when newly create, collect or withdraw a MiningInfo Object, this function 
@@ -209,9 +225,7 @@ contract MiningOneSide is Ownable, Multicall {
             lastRewardBlock = currBlockNumber;
             return;
         }
-        uint256 multiplier = (currBlockNumber - lastRewardBlock) *
-            rewardInfo.BONUS_MULTIPLIER;
-        uint256 tokenReward = multiplier * rewardInfo.tokenPerBlock;
+        uint256 tokenReward = (currBlockNumber - lastRewardBlock) * rewardInfo.tokenPerBlock;
         accRewardPerShareX128 += MulDivMath.mulDivFloor(
             tokenReward,
             FixedPoints.Q128,
