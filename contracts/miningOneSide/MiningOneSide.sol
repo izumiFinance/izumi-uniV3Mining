@@ -352,10 +352,10 @@ contract MiningOneSide is Ownable, Multicall {
                     rewardInfo.provider
                 );
                 uint256 actualAmountReward = amountReward;
-                if (allowance > actualAmountReward) {
+                if (allowance < actualAmountReward) {
                     actualAmountReward = allowance;
                 }
-                if (balance > actualAmountReward) {
+                if (balance < actualAmountReward) {
                     actualAmountReward = balance;
                 }
                 // call transferFrom
