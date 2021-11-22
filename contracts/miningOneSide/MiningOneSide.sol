@@ -28,8 +28,6 @@ contract MiningOneSide is Ownable, Multicall {
         address provider;
         // token amount of reward generated per block, during (startBlock, endBlock]
         uint256 tokenPerBlock;
-        uint256 endBlock;
-        uint256 startBlock;
     }
     RewardInfo public rewardInfo;
     struct RewardStatus {
@@ -41,6 +39,11 @@ contract MiningOneSide is Ownable, Multicall {
     RewardStatus public rewardStatus;
     // sum of vLiquidity of all MiningInfos
     uint256 totalVLiquidity;
+
+    // block number to finish reward
+    uint256 endBlock;
+    // block number to start reward
+    uint256 startBlock;
 
     struct MiningInfo {
         // amount of tokenLock user locked in MiningOneSide
@@ -141,12 +144,16 @@ contract MiningOneSide is Ownable, Multicall {
     /// @param swapFee fee of uniswap, 3000 means 0.3%, see fee
     /// @param nfPositionManager nonfungible position manager of uniswap, see nftManager
     /// @param rewardInfoParams see RewardInfo
+    /// @param _startBlock block number when starting reward
+    /// @param _endBlock block number when finishing reward
     constructor(
         address tokenUniAddr,
         address tokenLockAddr,
         uint24 swapFee,
         address nfPositionManager,
-        RewardInfo memory rewardInfoParams
+        RewardInfo memory rewardInfoParams,
+        uint256 _startBlock,
+        uint256 _endBlock
     ) {
         tokenUni = tokenUniAddr;
         tokenLock = tokenLockAddr;
@@ -166,14 +173,17 @@ contract MiningOneSide is Ownable, Multicall {
         require(swapPool != address(0), "No Uniswap Pool!");
 
         rewardInfo = rewardInfoParams;
+
         require(
-            rewardInfoParams.startBlock < rewardInfoParams.endBlock,
+            _startBlock < _endBlock,
             "start < end"
         );
+        startBlock = _startBlock;
+        endBlock = _endBlock;
 
         totalVLiquidity = 0;
         rewardStatus.accRewardPerShareX128 = 0;
-        rewardStatus.lastRewardBlock = rewardInfoParams.startBlock;
+        rewardStatus.lastRewardBlock = _startBlock;
     }
 
     modifier checkMiningOwner(uint256 miningID) {
@@ -186,28 +196,28 @@ contract MiningOneSide is Ownable, Multicall {
     }
 
     function setRewardTokenPerBlock(uint256 tokenPerBlock) external onlyOwner {
-        // update reward to min{block.number, rewardInfo.endBlock}
+        // update reward to min{block.number, endBlock}
         _updateGlobalReward();
-        if (block.number > rewardInfo.endBlock) {
+        if (block.number > endBlock) {
             rewardInfo.tokenPerBlock = 0;
-            rewardInfo.endBlock = block.number;
+            endBlock = block.number;
             _updateGlobalReward();
         }
         rewardInfo.tokenPerBlock = tokenPerBlock;
     }
 
-    function setRewardEndBlock(uint256 endBlock) external onlyOwner {
-        require(endBlock >= block.number, "EndBlock Can't Be Ago");
-        // update reward to min{block.number, rewardInfo.endBlock}
+    function setRewardEndBlock(uint256 _endBlock) external onlyOwner {
+        require(_endBlock >= block.number, "EndBlock Can't Be Ago");
+        // update reward to min{block.number, endBlock}
         _updateGlobalReward();
         uint256 rewardTokenPerBlock = rewardInfo.tokenPerBlock;
-        if (block.number > rewardInfo.endBlock) {
+        if (block.number > endBlock) {
             rewardInfo.tokenPerBlock = 0;
-            rewardInfo.endBlock = block.number;
+            endBlock = block.number;
             _updateGlobalReward();
         }
         rewardInfo.tokenPerBlock = rewardTokenPerBlock;
-        rewardInfo.endBlock = endBlock;
+        endBlock = _endBlock;
     }
 
     /// @notice when newly create, collect or withdraw a MiningInfo Object, this function 
@@ -217,12 +227,12 @@ contract MiningOneSide is Ownable, Multicall {
         if (block.number <= rewardStatus.lastRewardBlock) {
             return;
         }
-        if (rewardStatus.lastRewardBlock >= rewardInfo.endBlock) {
+        if (rewardStatus.lastRewardBlock >= endBlock) {
             return;
         }
         uint256 currBlockNumber = block.number;
-        if (currBlockNumber > rewardInfo.endBlock) {
-            currBlockNumber = rewardInfo.endBlock;
+        if (currBlockNumber > endBlock) {
+            currBlockNumber = endBlock;
         }
         if (totalVLiquidity == 0) {
             rewardStatus.lastRewardBlock = currBlockNumber;
