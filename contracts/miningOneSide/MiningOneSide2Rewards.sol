@@ -762,6 +762,7 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
         miningInfo.isUniPositionIDExternal = true;
 
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
+        totalVLiquidity += amountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
@@ -846,6 +847,7 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
             );
         }
         _newMiningInfo(miningInfo, amountLock, actualAmountUni * uniMultiplier);
+        totalVLiquidity += actualAmountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;

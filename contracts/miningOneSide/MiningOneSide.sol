@@ -34,16 +34,16 @@ contract MiningOneSide is Ownable, Multicall {
     
     // accRewardPerShare is amount of reward per unit vLiquidity from startBlock to min{lastRewardBlock, endBlock}
     // usually accRewardPerShare is not an int number, accRewardPerShareX128 means a 128-bit fixed point number
-    uint256 accRewardPerShareX128;
-    uint256 lastRewardBlock;
+    uint256 public accRewardPerShareX128;
+    uint256 public lastRewardBlock;
         
     // sum of vLiquidity of all MiningInfos
-    uint256 totalVLiquidity;
+    uint256 public totalVLiquidity;
 
     // block number to finish reward
-    uint256 endBlock;
+    uint256 public endBlock;
     // block number to start reward
-    uint256 startBlock;
+    uint256 public startBlock;
 
     struct MiningInfo {
         // amount of tokenLock user locked in MiningOneSide
@@ -696,6 +696,7 @@ contract MiningOneSide is Ownable, Multicall {
         miningInfo.isUniPositionIDExternal = true;
 
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
+        totalVLiquidity += amountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
@@ -780,6 +781,7 @@ contract MiningOneSide is Ownable, Multicall {
             );
         }
         _newMiningInfo(miningInfo, amountLock, actualAmountUni * uniMultiplier);
+        totalVLiquidity += actualAmountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
