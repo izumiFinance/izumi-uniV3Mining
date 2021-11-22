@@ -11,6 +11,7 @@ import "../libraries/AmountMath.sol";
 import "../libraries/LogPowMath.sol";
 import "../libraries/MulDivMath.sol";
 import "../libraries/UniswapOracle.sol";
+import "../libraries/Math.sol";
 
 import "../uniswap/interfaces.sol";
 import "../utils.sol";
@@ -351,13 +352,8 @@ contract MiningOneSide is Ownable, Multicall {
                 uint256 balance = IERC20(rewardInfo.token).balanceOf(
                     rewardInfo.provider
                 );
-                uint256 actualAmountReward = amountReward;
-                if (allowance < actualAmountReward) {
-                    actualAmountReward = allowance;
-                }
-                if (balance < actualAmountReward) {
-                    actualAmountReward = balance;
-                }
+                uint256 actualAmountReward = Math.min(amountReward, allowance);
+                actualAmountReward = Math.min(actualAmountReward, balance);
                 // call transferFrom
                 (bool success, bytes memory data) = rewardInfo.token.call(
                     abi.encodeWithSelector(
