@@ -391,31 +391,6 @@ describe("mining one side", function () {
       await ethers.provider.send('evm_mine');
       await ethers.provider.send('evm_mine');
       await ethers.provider.send('evm_mine');
-      await mining.connect(miner1).collect("0", recipient1.address);
-      var checkBlock1 = await ethers.provider.getBlockNumber();
-      var tokenReward01 = BigNumber(rewardInfo.tokenPerBlock).times(checkBlock1 - checkBlock0);
-      var expectAccRewardPerShare01 = floor(tokenReward01.times(q128).div(totalVLiquidity)).toFixed(0);
-      var accRewardPerShare01 = (await mining.accRewardPerShareX128()).toString();
-      expect(accRewardPerShare01).to.equal(expectAccRewardPerShare01);
-      // check reward of miner1 after collect
-      var expectMiner1Reward01 = muldiv(accRewardPerShare01, BigNumber(miner1VLiquidity), q128).toFixed(0);
-      await checkBalance(tokenZ, recipient1, expectMiner1Reward01);
-      // check mining info after collect
-      expectMiningInfo = {
-        amountLock: miner1AmountLockY,
-        vLiquidity: miner1AmountUniX,
-        lastTouchAccRewardPerShareX128: expectAccRewardPerShare01,
-        uniPositionID: posID,
-        isUniPositionIDExternal: true,
-      };
-      await checkMiningInfo(mining, "0", expectMiningInfo);
-
-      await ethers.provider.send('evm_mine');
-      await ethers.provider.send('evm_mine');
-      await ethers.provider.send('evm_mine');
-      await ethers.provider.send('evm_mine');
-      await ethers.provider.send('evm_mine');
-      await ethers.provider.send('evm_mine');
 
       await mining.connect(miner1).withdraw(
         "0",
@@ -425,21 +400,20 @@ describe("mining one side", function () {
       );
 
       await checkPositionOwner(uniPositionManager, posID, recipient2);
-      var checkBlock2 = await ethers.provider.getBlockNumber();
-      var tokenReward12 = BigNumber(rewardInfo.tokenPerBlock).times(checkBlock2 - checkBlock1);
-      var accRewardPerShare12 = muldiv(tokenReward12, q128, BigNumber(totalVLiquidity));
-      var expectAccRewardPerShare02 = accRewardPerShare12.plus(accRewardPerShare01).toFixed(0);
-      var accRewardPerShare02 = (await mining.accRewardPerShareX128()).toString();
+      var checkBlock1 = await ethers.provider.getBlockNumber();
+      var tokenReward = BigNumber(rewardInfo.tokenPerBlock).times(checkBlock1 - checkBlock0);
+      var expectAccRewardPerShare = muldiv(tokenReward, q128, BigNumber(totalVLiquidity)).toFixed(0);
+      var accRewardPerShare = (await mining.accRewardPerShareX128()).toString();
 
-      expect(accRewardPerShare02).to.equal(expectAccRewardPerShare02);
-      var expectMiner1Reward12 = muldiv(accRewardPerShare12, BigNumber(miner1VLiquidity), q128).toFixed(0);
-      await checkBalance(tokenZ, recipient2, expectMiner1Reward12);
+      expect(accRewardPerShare).to.equal(expectAccRewardPerShare);
+      var expectMiner1Reward = muldiv(accRewardPerShare, BigNumber(miner1VLiquidity), q128).toFixed(0);
+      await checkBalance(tokenZ, recipient2, expectMiner1Reward);
       await checkBalance(tokenY, recipient2, miner1AmountLockY);
       // check mining info after withdraw
       expectMiningInfo = {
         amountLock: "0",
         vLiquidity: "0",
-        lastTouchAccRewardPerShareX128: expectAccRewardPerShare02,
+        lastTouchAccRewardPerShareX128: expectAccRewardPerShare,
         uniPositionID: "0",
         isUniPositionIDExternal: true,
       };
