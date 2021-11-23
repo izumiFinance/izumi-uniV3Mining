@@ -13,4 +13,16 @@ library Math {
             c = b;
         }
     }
+    function min(int24 a, int24 b) internal pure returns(int24 c) {
+        c = a;
+        if (c > b) {
+            c = b;
+        }
+    }
+    function max(int24 a, int24 b) internal pure returns(int24 c) {
+        c = a;
+        if (c < b) {
+            c = b;
+        }
+    }
 }
