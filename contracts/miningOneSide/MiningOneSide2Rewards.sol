@@ -298,6 +298,7 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
 
         miningInfo.amountLock = amountLock;
         miningInfo.vLiquidity = vLiquidity;
+        totalVLiquidity += vLiquidity;
         // todo: whether need ceil?
         miningInfo.lastTouchAccRewardPerShare0 = accRewardPerShare0;
         miningInfo.lastTouchAccRewardPerShare1 = accRewardPerShare1;
@@ -466,6 +467,7 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
         if (amountLock > 0) {
             IERC20(tokenLock).safeTransfer(recipient, amountLock);
         }
+        totalVLiquidity -= miningInfo.vLiquidity;
         // third, clear miningInfo
         miningInfo.amountLock = 0;
         miningInfo.vLiquidity = 0;
@@ -549,6 +551,7 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
             tickRange.tickRight = _tickFloor(tickRange.tickRight, tickSpacing);
         }
         require(tickRange.tickLeft < tickRange.tickRight, "L<R");
+        sqrtPriceX96 = avgSqrtPriceX96;
     }
 
     /// @dev compute amount of tokenLock
@@ -762,7 +765,6 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
         miningInfo.isUniPositionIDExternal = true;
 
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
-        totalVLiquidity += amountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
@@ -847,7 +849,6 @@ contract MiningOneSide2Rewards is Ownable, Multicall {
             );
         }
         _newMiningInfo(miningInfo, amountLock, actualAmountUni * uniMultiplier);
-        totalVLiquidity += actualAmountUni * uniMultiplier;
 
         addr2MiningIDs[msg.sender].add(miningID);
         miningOwner[miningID] = msg.sender;
