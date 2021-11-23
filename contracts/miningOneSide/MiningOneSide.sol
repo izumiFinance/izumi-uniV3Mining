@@ -6,6 +6,7 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "../libraries/AmountMath.sol";
 import "../libraries/LogPowMath.sol";
@@ -17,10 +18,13 @@ import "../uniswap/interfaces.sol";
 import "../utils.sol";
 import "../multicall.sol";
 
-contract MiningOneSide is Ownable, Multicall {
+contract MiningOneSide is Ownable, Multicall, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
     using UniswapOracle for address;
+
+    int24 internal constant TICK_MAX = 500000;
+    int24 internal constant TICK_MIN = -500000;
 
     struct RewardInfo {
         // token to reward
@@ -55,7 +59,8 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 lastTouchAccRewardPerShareX128;
         // NFT ID of uniswap
         uint256 uniPositionID;
-        // liquidity in uniswap of NFT 'uniPositionID'
+        // if isUniPositionIDExternal is false, uniLiquidity is liquidity in uniswap of NFT 'uniPositionID'
+        // when isUniPositionIDExternal is true, uniLiquidity is always 0
         uint128 uniLiquidity;
         // isUniPositionIDExternal is true, means user deposit his/her NFT (with tokenid of uniPositionID)
         //    token when calling mint(...)
@@ -82,10 +87,6 @@ contract MiningOneSide is Ownable, Multicall {
     address public uniFactory;
     // pool of (tokenUni/tokenLock/fee)
     address public swapPool;
-
-    // sqrt2A / sqrt2B is sqrt(2)
-    uint256 internal constant sqrt2A = 141421;
-    uint256 internal constant sqrt2B = 100000;
 
     // owner address of MiningInfo
     // each MiningInfo has a unique MiningInfoID
@@ -230,10 +231,7 @@ contract MiningOneSide is Ownable, Multicall {
         if (lastRewardBlock >= endBlock) {
             return;
         }
-        uint256 currBlockNumber = block.number;
-        if (currBlockNumber > endBlock) {
-            currBlockNumber = endBlock;
-        }
+        uint256 currBlockNumber = Math.min(block.number, endBlock);
         if (totalVLiquidity == 0) {
             lastRewardBlock = currBlockNumber;
             return;
@@ -451,35 +449,15 @@ contract MiningOneSide is Ownable, Multicall {
         if (tokenUni < tokenLock) {
             // price is tokenLock / tokenUni
             // tokenUni is X
-            tickRange.tickLeft = currTick + 1;
-            sqrtPriceX96 = currSqrtPriceX96;
-            if (tickRange.tickLeft < avgTick) {
-                tickRange.tickLeft = avgTick;
-                sqrtPriceX96 = avgSqrtPriceX96;
-            }
-            uint256 sqrtDoublePriceX96 = (uint256(sqrtPriceX96) *
-                sqrt2A) / sqrt2B;
-            require(uint160(sqrtDoublePriceX96) == sqrtDoublePriceX96, "2p O");
-            tickRange.tickRight = LogPowMath.getLogSqrtPriceFloor(
-                uint160(sqrtDoublePriceX96)
-            );
+            tickRange.tickLeft = Math.max(currTick + 1, avgTick);
+            tickRange.tickRight = TICK_MAX;
             tickRange.tickLeft = _tickUpper(tickRange.tickLeft, tickSpacing);
             tickRange.tickRight = _tickUpper(tickRange.tickRight, tickSpacing);
         } else {
             // price is tokenUni / tokenLock
             // tokenUni is Y
-            tickRange.tickRight = currTick;
-            sqrtPriceX96 = currSqrtPriceX96;
-            if (tickRange.tickRight > avgTick) {
-                tickRange.tickRight = avgTick;
-                sqrtPriceX96 = avgSqrtPriceX96;
-            }
-            uint256 sqrtHalfPriceX96 = (uint256(sqrtPriceX96) *
-                sqrt2B) / sqrt2A;
-            require(uint160(sqrtHalfPriceX96) == sqrtHalfPriceX96, "p/2 O");
-            tickRange.tickLeft = LogPowMath.getLogSqrtPriceFloor(
-                uint160(sqrtHalfPriceX96)
-            );
+            tickRange.tickRight = Math.min(currTick, avgTick);
+            tickRange.tickLeft = TICK_MIN;
             tickRange.tickLeft = _tickFloor(tickRange.tickLeft, tickSpacing);
             tickRange.tickRight = _tickFloor(tickRange.tickRight, tickSpacing);
         }
@@ -667,11 +645,12 @@ contract MiningOneSide is Ownable, Multicall {
     ///    note that amount of tokenLock will also be multiplied
     /// @return miningID is the id of MiningInfo obj created during this calling
     function mintWithExistingNFT(uint256 uniPositionID, uint256 uniMultiplier)
-        external
+        external nonReentrant
         returns (uint256 miningID)
     {
+        require(uniMultiplier >= 1, "M>=1");
         require(uniMultiplier < 3, "M<3");
-        IERC721(nftManager).safeTransferFrom(
+        IERC721(nftManager).transferFrom(
             msg.sender,
             address(this),
             uniPositionID
@@ -696,6 +675,7 @@ contract MiningOneSide is Ownable, Multicall {
         // instead of created by this contract. When user calling withdraw(...) in the future
         // this contract will refund this NFT
         miningInfo.isUniPositionIDExternal = true;
+        miningInfo.uniPositionID = uniPositionID;
 
         _newMiningInfo(miningInfo, amountLock, amountUni * uniMultiplier);
 
@@ -714,7 +694,8 @@ contract MiningOneSide is Ownable, Multicall {
         uint256 amountUni,
         uint256 uniMultiplier,
         uint256 deadline
-    ) external returns (uint256 miningID) {
+    ) external nonReentrant returns (uint256 miningID) {
+        require(uniMultiplier > 0, "M>0");
         require(uniMultiplier < 3, "M<3");
 
         IERC20(tokenUni).safeTransferFrom(
@@ -797,6 +778,7 @@ contract MiningOneSide is Ownable, Multicall {
     /// @return amountReward amount of tokenReward (reward of mining) recieved by recipient
     function collect(uint256 miningID, address recipient)
         external
+        nonReentrant
         checkMiningOwner(miningID)
         returns (
             uint256 amountUni,
@@ -809,6 +791,8 @@ contract MiningOneSide is Ownable, Multicall {
         }
         MiningInfo storage miningInfo = miningInfos[miningID];
 
+        require(miningInfo.uniPositionID != 0, "Has Withdrawed!");
+        
         // collect reward of mining
         amountReward = _collect(recipient, miningInfo, false);
 
@@ -849,6 +833,7 @@ contract MiningOneSide is Ownable, Multicall {
         bool emergency
     )
         external
+        nonReentrant
         checkMiningOwner(miningID)
         returns (
             uint256 amountUni,
@@ -860,6 +845,8 @@ contract MiningOneSide is Ownable, Multicall {
             recipient = msg.sender;
         }
         MiningInfo storage miningInfo = miningInfos[miningID];
+
+        require(miningInfo.uniPositionID != 0, "Has Withdrawed!");
 
         uint256 amountUniFromSwap = 0;
         uint256 amountLockFromSwap = 0;
@@ -900,13 +887,14 @@ contract MiningOneSide is Ownable, Multicall {
             }
         } else {
             // send deposited NFT to user
-            IERC721(nftManager).safeTransferFrom(
+            IERC721(nftManager).transferFrom(
                 address(this),
                 recipient,
                 miningInfo.uniPositionID
             );
         }
         miningInfo.uniLiquidity = 0;
+        miningInfo.uniPositionID = 0;
 
         // withdraw mining
         (amountReward, amountLock) = _withdraw(
