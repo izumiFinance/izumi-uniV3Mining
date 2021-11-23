@@ -134,13 +134,14 @@ describe("mining no permanent loss", function () {
     var endBlock;
 
     var poolXYAddr;
-    var sqrtPriceY_96;
+    var sqrtPriceX_96;
 
     var mining;
 
     var q128;
     
     beforeEach(async function() {
+      
         [signer, miner1, miner2, trader, tokenZProvider, recipient1, recipient2] = await ethers.getSigners();
 
         // a fake weth
@@ -170,8 +171,10 @@ describe("mining no permanent loss", function () {
         endBlock = "10000000000000000000";
 
         q128 = BigNumber("2").pow(128);
+        
 
     });
+    
     it("check simply mining when tokenX is tokenUni", async function () {
       
       const MiningFactory = await ethers.getContractFactory("MiningOneSide");
@@ -196,13 +199,20 @@ describe("mining no permanent loss", function () {
 
       var miner1AmountUniX = "10000000000000000";
       var miner1AmountLockY = "40000000000000000";
+      var miner1VLiquidity = "10000000000000000";
       await mining.connect(miner1).mint(
         miner1AmountUniX,
         "1",
         "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       );
+      // check lock balance of contract
+      await checkBalance(tokenY, mining, miner1AmountLockY);
       var checkBlock0 = await ethers.provider.getBlockNumber();
 
+      var expectTotalVLiquidity = "10000000000000000";
+      var totalVLiquidity = (await mining.totalVLiquidity()).toString();
+      expect(totalVLiquidity).to.equal(expectTotalVLiquidity);
+      // check mining info after mint
       var expectMiningInfo = {
         amountLock: miner1AmountLockY,
         vLiquidity: miner1AmountUniX,
@@ -210,10 +220,6 @@ describe("mining no permanent loss", function () {
         uniPositionID: "1",
         isUniPositionIDExternal: false,
       };
-
-      var expectTotalVLiquidity = "10000000000000000";
-      var totalVLiquidity = (await mining.totalVLiquidity()).toString();
-      expect(totalVLiquidity).to.equal(expectTotalVLiquidity);
 
       await checkMiningInfo(mining, "0", expectMiningInfo);
 
@@ -229,11 +235,10 @@ describe("mining no permanent loss", function () {
       var accRewardPerShare01 = floor(tokenReward01.times(q128).div(totalVLiquidity));
       var expectAccRewardPerShare01 = (await mining.accRewardPerShareX128()).toString();
       expect(accRewardPerShare01.toFixed(0)).to.equal(expectAccRewardPerShare01);
-
-      var miner1VLiquidity = "10000000000000000";
+      // check reward of miner1 after collect
       var expectMiner1Reward01 = muldiv(accRewardPerShare01, BigNumber(miner1VLiquidity), q128).toFixed(0);
       await checkBalance(tokenZ, recipient1, expectMiner1Reward01);
-
+      // check mining info after collect
       expectMiningInfo = {
         amountLock: "40000000000000000",
         vLiquidity: "10000000000000000",
@@ -267,6 +272,134 @@ describe("mining no permanent loss", function () {
       var expectMiner1Reward12 = muldiv(accRewardPerShare12, BigNumber(miner1VLiquidity), q128).toFixed(0);
       await checkBalance(tokenZ, recipient2, expectMiner1Reward12);
       await checkBalance(tokenY, recipient2, miner1AmountLockY);
-      // await checkBalanceRange(tokenX, recipient2, BigNumber(miner1AmountUniX).minus(1));
+      // check mining info after withdraw
+      expectMiningInfo = {
+        amountLock: "0",
+        vLiquidity: "0",
+        lastTouchAccRewardPerShareX128: expectAccRewardPerShare02,
+        uniPositionID: "1",
+        isUniPositionIDExternal: false,
+      };
+      await checkMiningInfo(mining, "0", expectMiningInfo);
+      // check total vliquidity
+
+      totalVLiquidity = (await mining.totalVLiquidity()).toString();
+      expect(totalVLiquidity).to.equal("0");
+      
     });
+
+    it("check simply mining when tokenY is tokenUni", async function () {
+      
+      const MiningFactory = await ethers.getContractFactory("MiningOneSide");
+      console.log("before deploy");
+      mining = await MiningFactory.deploy(
+        tokenY.address,
+        tokenX.address,
+        "3000",
+        uniPositionManager.address,
+        rewardInfo,
+        startBlock,
+        endBlock
+      );
+      var tokenZ = await attachToken(rewardInfo.token);
+      await tokenZ.connect(tokenZProvider).approve(mining.address, "1000000000000000000000000");
+      console.log("after deploy");
+      // miner1
+      await tokenX.transfer(miner1.address, "1000000000000000000");
+      await tokenY.transfer(miner1.address, "1000000000000000000");
+      await tokenX.connect(miner1).approve(mining.address, "2500000000000000");
+      await tokenY.connect(miner1).approve(mining.address, "10000000000000000");
+
+      var miner1AmountUniY = "10000000000000000";
+      var miner1AmountLockX = "2500000000000000";
+      var miner1VLiquidity = "10000000000000000";
+      await mining.connect(miner1).mint(
+        miner1AmountUniY,
+        "1",
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      );
+      // check lock token balance of contract
+      await checkBalance(tokenX, mining, miner1AmountLockX);
+
+      var checkBlock0 = await ethers.provider.getBlockNumber();
+
+      var expectTotalVLiquidity = "10000000000000000";
+      var totalVLiquidity = (await mining.totalVLiquidity()).toString();
+      expect(totalVLiquidity).to.equal(expectTotalVLiquidity);
+      // check mining info after mint
+      var expectMiningInfo = {
+        amountLock: miner1AmountLockX,
+        vLiquidity: miner1VLiquidity,
+        lastTouchAccRewardPerShareX128: "0",
+        uniPositionID: "1",
+        isUniPositionIDExternal: false,
+      };
+
+      await checkMiningInfo(mining, "0", expectMiningInfo);
+
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await mining.connect(miner1).collect("0", recipient1.address);
+      var checkBlock1 = await ethers.provider.getBlockNumber();
+      var tokenReward01 = BigNumber(rewardInfo.tokenPerBlock).times(checkBlock1 - checkBlock0);
+      var accRewardPerShare01 = floor(tokenReward01.times(q128).div(totalVLiquidity));
+      var expectAccRewardPerShare01 = (await mining.accRewardPerShareX128()).toString();
+      expect(accRewardPerShare01.toFixed(0)).to.equal(expectAccRewardPerShare01);
+      // check reward of miner1 after collect
+      var expectMiner1Reward01 = muldiv(accRewardPerShare01, BigNumber(miner1VLiquidity), q128).toFixed(0);
+      await checkBalance(tokenZ, recipient1, expectMiner1Reward01);
+      // check mining info after collect
+      expectMiningInfo = {
+        amountLock: miner1AmountLockX,
+        vLiquidity: miner1VLiquidity,
+        lastTouchAccRewardPerShareX128: expectAccRewardPerShare01,
+        uniPositionID: "1",
+        isUniPositionIDExternal: false,
+      };
+      await checkMiningInfo(mining, "0", expectMiningInfo);
+
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+      await ethers.provider.send('evm_mine');
+
+      await mining.connect(miner1).withdraw(
+        "0",
+        recipient2.address,
+        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        false
+      );
+
+      var checkBlock2 = await ethers.provider.getBlockNumber();
+      var tokenReward12 = BigNumber(rewardInfo.tokenPerBlock).times(checkBlock2 - checkBlock1);
+      var accRewardPerShare12 = muldiv(tokenReward12, q128, BigNumber(totalVLiquidity));
+      var accRewardPerShare02 = accRewardPerShare12.plus(accRewardPerShare01);
+      var expectAccRewardPerShare02 = (await mining.accRewardPerShareX128()).toString();
+
+      expect(accRewardPerShare02.toFixed(0)).to.equal(expectAccRewardPerShare02);
+      var expectMiner1Reward12 = muldiv(accRewardPerShare12, BigNumber(miner1VLiquidity), q128).toFixed(0);
+      await checkBalance(tokenZ, recipient2, expectMiner1Reward12);
+      await checkBalance(tokenX, recipient2, miner1AmountLockX);
+      // check mining info after withdraw
+      expectMiningInfo = {
+        amountLock: "0",
+        vLiquidity: "0",
+        lastTouchAccRewardPerShareX128: expectAccRewardPerShare02,
+        uniPositionID: "1",
+        isUniPositionIDExternal: false,
+      };
+      await checkMiningInfo(mining, "0", expectMiningInfo);
+      // check total vliquidity
+
+      totalVLiquidity = (await mining.totalVLiquidity()).toString();
+      expect(totalVLiquidity).to.equal("0");
+      
+    });
+    
 });
