@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 // Uncomment if needed.
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -102,8 +102,8 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 rewardPerBlock;
     }
 
-    mapping(uint256 => RewardInfo) rewardInfos;
-    uint256 rewardInfosLen;
+    mapping(uint256 => RewardInfo) public rewardInfos;
+    uint256 public rewardInfosLen;
 
     /// @dev Store the owner of the NFT token
     mapping(uint256 => address) public owners;
@@ -119,15 +119,24 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uint256[] lastTouchAccRewardPerShare;
     }
 
-    mapping(uint256 => TokenStatus) tokenStatus;
+    mapping(uint256 => TokenStatus) public tokenStatus;
+    function lastTouchAccRewardPerShare(uint256 tokenId) external view returns(uint256[] memory lta) {
+        TokenStatus memory t = tokenStatus[tokenId];
+        uint256 len = t.lastTouchAccRewardPerShare.length;
+        lta = new uint256[](len);
+        for (uint256 i = 0; i < len; i ++) {
+            lta[i] = t.lastTouchAccRewardPerShare[i];
+        }
+        return lta;
+    }
 
     /// @dev token to lock, 0 for not boost
-    IERC20 iziToken;
+    IERC20 public iziToken;
     /// @dev current total nIZI.
-    uint256 totalNIZI;
+    uint256 public totalNIZI;
 
     /// @dev Current total virtual liquidity.
-    uint256 totalVLiquidity;
+    uint256 public totalVLiquidity;
 
 
     /// @dev 2 << 128
@@ -181,7 +190,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
         lastTouchBlock = startBlock;
 
-        totalVLiquidity = 1;
+        totalVLiquidity = 0;
         totalNIZI = 0;
     }
     
@@ -314,6 +323,10 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
             return;
         }
         uint256 currBlockNumber = Math.min(block.number, endBlock);
+        if (totalVLiquidity == 0) {
+            lastTouchBlock = currBlockNumber;
+            return;
+        }
 
         for (uint256 i = 0; i < rewardInfosLen; i ++) {
             uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
@@ -455,7 +468,6 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
     function _collectReward(uint256 tokenId) internal {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         TokenStatus memory t = tokenStatus[tokenId];
 
         _updateGlobalStatus();
@@ -476,6 +488,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
     function collectReward(uint256 tokenId) nonReentrant external {
+        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         _collectReward(tokenId);
     }
 
@@ -483,6 +496,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     function collectRewards() nonReentrant external {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
+            require(owners[ids.at(i)] == msg.sender, "NOT OWNER");
             _collectReward(ids.at(i));
         }
     }
