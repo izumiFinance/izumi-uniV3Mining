@@ -1,13 +1,14 @@
 const hardhat = require("hardhat");
 
 //Example:
-//HARDHAT_NETWORK='izumi_test' node deployToken.js "Dai Stable Coin" "DAI"
+//HARDHAT_NETWORK='izumiTest' node deployToken.js "Dai Stable Coin" "DAI" 18
 //
 
 const v = process.argv
 const para = {
     tokenName: v[2],
     tokenSymbol: v[3],
+    decimal: v[4],
 }
 
 async function main() {
@@ -17,8 +18,8 @@ async function main() {
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
 
   // We get the contract to deploy
-  const tokenFactory = await hardhat.ethers.getContractFactory("Token")
-  const token = await tokenFactory.deploy(para.tokenName, para.tokenSymbol);
+  const tokenFactory = await hardhat.ethers.getContractFactory("TestToken")
+  const token = await tokenFactory.deploy(para.tokenName, para.tokenSymbol, para.decimal);
   
   await token.deployed();
 
