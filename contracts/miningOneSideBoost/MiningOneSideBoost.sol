@@ -216,7 +216,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
 
         address weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
-        require(weth != poolParams.uniTokenAddr, "weth not supported!");
         require(weth != poolParams.lockTokenAddr, "weth not supported!");
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
