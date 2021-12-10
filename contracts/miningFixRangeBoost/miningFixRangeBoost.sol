@@ -611,7 +611,10 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice Set new reward end block.
     /// @param _endBlock New end block.
     function modifyEndBlock(uint256 _endBlock) external onlyOwner {
+        require(_endBlock > block.number, "endblock cant be ago");
         _updateGlobalStatus();
+        // jump if origin endBlock < block.number
+        lastTouchBlock = block.number;
         endBlock = _endBlock;
         emit ModifyEndBlock(endBlock);
     }
