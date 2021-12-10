@@ -224,6 +224,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         uniIsETH = (uniToken == weth);
         lockToken = poolParams.lockTokenAddr;
 
+        IERC20(uniToken).safeApprove(uniV3NFTManager, type(uint256).max);
+
         swapPool = IUniswapV3Factory(uniFactory).getPool(
             lockToken,
             uniToken,
@@ -542,7 +544,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
                 address(this),
                 uniAmount
             );
-            IERC20(uniToken).safeApprove(uniV3NFTManager, uniAmount);
+            // IERC20(uniToken).safeApprove(uniV3NFTManager, uniAmount);
         }
         (uint160 sqrtPriceX96, int24 tickLeft, int24 tickRight) = _getPriceAndTickRange();
 
@@ -563,32 +565,26 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         newTokenStatus.isDepositWithNFT = false;
 
         if (uniToken < lockToken) {
-            uint256 amount1;
             (
                 newTokenStatus.nftId,
                 newTokenStatus.uniLiquidity,
                 actualAmountUni,
-                amount1
+
             ) = INonfungiblePositionManager(uniV3NFTManager).mint{value: msg.value}(uniParams);
-            require(actualAmountUni <= uniAmount, "Uniswap ActualUni Exceed!");
-            require(amount1 == 0, "Uniswap No AmountStaking!");
         } else {
-            uint256 amount0;
             (
                 newTokenStatus.nftId,
                 newTokenStatus.uniLiquidity,
-                amount0,
+                ,
                 actualAmountUni
             ) = INonfungiblePositionManager(uniV3NFTManager).mint{value: msg.value}(uniParams);
-            require(actualAmountUni <= uniAmount, "Uniswap ActualUni Exceed!");
-            require(amount0 == 0, "Uniswap No AmountStaking!");
         }
 
         owners[newTokenStatus.nftId] = msg.sender;
         bool res = tokenIds[msg.sender].add(newTokenStatus.nftId);
         require(res);
 
-        IERC20(uniToken).safeApprove(uniV3NFTManager, 0);
+        // IERC20(uniToken).safeApprove(uniV3NFTManager, 0);
         if (actualAmountUni < uniAmount) {
             if (uniIsETH) {
                 // refund uniToken
