@@ -90,11 +90,12 @@ interface INonfungiblePositionManager {
         address recipient;
         uint256 deadline;
     }
-    function sweepToken(
-        address token,
-        uint256 amountMinimum,
-        address recipient
-    ) external payable;
+    
+    /// @notice Refunds any ETH balance held by this contract to the `msg.sender`
+    /// @dev Useful for bundling with mint or increase liquidity that uses ether, or exact output swaps
+    /// that use ether for the input amount
+    function refundETH() external payable;
+
     /// @notice Creates a new position wrapped in a NFT
     /// @dev Call this when the pool does exist and is initialized. Note that if the pool is created but not initialized
     /// a method does not exist, i.e. the pool is assumed to be initialized.
