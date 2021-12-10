@@ -166,6 +166,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @dev Current total virtual liquidity.
     uint256 public totalVLiquidity;
+    // uint256 public totalLock;
 
 
     /// @dev 2 << 128
@@ -269,6 +270,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address iziTokenAddr_,
             uint256 lastTouchBlock_,
             uint256 totalVLiquidity_,
+            // uint256 totalLock_,
             uint256 startBlock_,
             uint256 endBlock_
         )
@@ -281,6 +283,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address(iziToken),
             lastTouchBlock,
             totalVLiquidity,
+            // totalLock,
             startBlock,
             endBlock
         );
@@ -612,6 +615,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address(this),
             newTokenStatus.lockAmount
         );
+        // totalLock += newTokenStatus.lockAmount;
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
         newTokenStatus.nIZI = numIZI;
@@ -699,8 +703,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         
         if (newTokenStatus.lockAmount > 0) {
             IERC20(lockToken).safeTransferFrom(msg.sender, address(this), newTokenStatus.lockAmount);
+            // totalLock += newTokenStatus.lockAmount;
         }
-
 
         // the execution order for the next three lines is crutial
         _updateGlobalStatus();
@@ -799,6 +803,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         if (t.lockAmount > 0) {
             // refund lockToken to user
             IERC20(lockToken).transfer(msg.sender, t.lockAmount);
+            // totalLock -= t.lockAmount;
         }
 
         if (!t.isDepositWithNFT) {
