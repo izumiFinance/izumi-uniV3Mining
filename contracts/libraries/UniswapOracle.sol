@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
 import "../uniswap/interfaces.sol";
@@ -75,9 +76,9 @@ library UniswapOracle {
             int24 tick,
             uint16 observationIndex,
             uint16 observationCardinality,
-            uint16 observationCardinalityNext,
-            uint8 feeProtocol,
-            bool unlocked
+            ,
+            ,
+        
         ) = IUniswapV3Pool(pool).slot0();
         slot0.tick = tick;
         slot0.sqrtPriceX96 = sqrtPriceX96;

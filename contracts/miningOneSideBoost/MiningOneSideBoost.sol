@@ -374,7 +374,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 uniAmount = _getAmountUniForNFT(sqrtPriceAX96, sqrtPriceBX96, liquidity);
         
         require(uniAmount < type(uint128).max, "Amount Uni Can't Exceed 2**128!");
-        require(uniAmount >= 1e9, "Amount TokenUni of NFT TOO SMALL!");
+        require(uniAmount >= 1e7, "Amount TokenUni of NFT TOO SMALL!");
         lockAmount = _getLockAmount(avgSqrtPriceX96, uniAmount * lockBoostMultiplier);
         vLiquidity = uniAmount * lockBoostMultiplier / 1e6;
     }
@@ -533,7 +533,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 uniAmount, uint256 numIZI, uint256 deadline
     ) external nonReentrant payable {
         require(uniAmount < type(uint128).max, "Amount Uni Can't Exceed 2**128!");
-        require(uniAmount >= 1e6, "Amount of TokenUni TOO SMALL!");
+        require(uniAmount >= 1e7, "Amount of TokenUni TOO SMALL!");
         if (uniIsETH) {
             require(msg.value >= uniAmount);
         } else {
