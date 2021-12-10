@@ -438,7 +438,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
         _updateTokenStatus(tokenId, t.vLiquidity, validVLiquidity, nIZI);
         // refund iZi to user
-        iziToken.safeTransferFrom(address(this), msg.sender, deltaNIZI);
+        iziToken.transfer(msg.sender, deltaNIZI);
     }
 
     /// @notice Widthdraw a single position.
@@ -453,7 +453,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         if (nIZI > 0) {
             _updateNIZI(nIZI, false);
             // refund iZi to user
-            iziToken.safeTransferFrom(address(this), msg.sender, nIZI);
+            iziToken.transfer(msg.sender, nIZI);
             tokenStatus[tokenId].nIZI = 0;
         }
 
