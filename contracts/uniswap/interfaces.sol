@@ -90,7 +90,11 @@ interface INonfungiblePositionManager {
         address recipient;
         uint256 deadline;
     }
-
+    function sweepToken(
+        address token,
+        uint256 amountMinimum,
+        address recipient
+    ) external payable;
     /// @notice Creates a new position wrapped in a NFT
     /// @dev Call this when the pool does exist and is initialized. Note that if the pool is created but not initialized
     /// a method does not exist, i.e. the pool is assumed to be initialized.
@@ -146,4 +150,17 @@ interface INonfungiblePositionManager {
     /// @return amount1 The amount of fees collected in token1
     function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
 
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
+
+    function ownerOf(uint256 tokenId) external view returns (address);
+
+    function transferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
 }
