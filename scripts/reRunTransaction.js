@@ -18,7 +18,8 @@ async function main() {
 
     const w3 = new web3(para.rpc);
     const tx = await w3.eth.getTransaction(para.tx);
-    w3.eth.call(tx, tx.blockNumber);
+    const ret = await w3.eth.call(tx, tx.blockNumber);
+    console.log('ret: ', ret);
 }
 
 

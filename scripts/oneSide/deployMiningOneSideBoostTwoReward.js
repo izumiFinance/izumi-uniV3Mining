@@ -1,25 +1,25 @@
 const hardhat = require("hardhat");
-const contracts = require("./deployed.js");
+const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node deployMiningFixRangeBoostTwoReward.js \
-//     'BIT' 'USDC' 3000 \
+//     node deployMiningOneSideBoostTwoReward.js \
+//     'WETH9' 'iZi' 3000 \
 //     'iZi' 10 \
 //     'BIT' 10 \
+//     3 \
 //     0 1000000000000 \
-//     1.26 5.05 \
 //     0
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
 
 var para = {
-    token0Symbol: v[2],
-    token0Address: contracts[net][v[2]],
-    token1Symbol: v[3],
-    token1Address: contracts[net][v[3]],
+    tokenUniSymbol: v[2],
+    tokenUniAddress: contracts[net][v[2]],
+    tokenLockSymbol: v[3],
+    tokenLockAddress: contracts[net][v[3]],
     fee: v[4],
 
     rewardTokenSymbol0: v[5],
@@ -30,12 +30,12 @@ var para = {
     rewardTokenAddress1: contracts[net][v[7]],
     rewardPerBlock1: v[8],
 
-    startBlock: v[9],
-    endBlock: v[10],
-    priceLower0By1: BigNumber(v[11]),
-    priceUpper0By1: BigNumber(v[12]),
+    lockBoostMultiplier: v[9],
 
-    boost: v[13],
+    startBlock: v[10],
+    endBlock: v[11],
+
+    boost: v[12],
 }
 
 
@@ -68,63 +68,40 @@ async function priceNoDecimal(tokenAddr0, tokenAddr1, priceDecimal0By1) {
   return priceNoDecimal0By1;
 }
 
+async function approve(token, account, destAddr, amount) {
+  await token.connect(account).approve(destAddr, amount);
+}
+
 async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  if (para.token0Address.toUpperCase() > para.token1Address.toUpperCase()) {
-    var tmp = para.token0Address;
-    para.token0Address = para.token1Address;
-    para.token1Address = tmp;
-
-    tmp = para.token0Symbol;
-    para.token0Symbol = para.token1Symbol;
-    para.token1Symbol = tmp;
-
-    var priceLower0By1 = BigNumber(1).div(para.priceUpper0By1);
-    var priceUpper0By1 = BigNumber(1).div(para.priceLower0By1);
-    para.priceLower0By1 = priceLower0By1;
-    para.priceUpper0By1 = priceUpper0By1;
-  }
-
-  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
 
   para.rewardPerBlock0 = await getNumNoDecimal(para.rewardTokenAddress0, para.rewardPerBlock0);
   para.rewardPerBlock1 = await getNumNoDecimal(para.rewardTokenAddress1, para.rewardPerBlock1);
 
-  var priceLowerNoDecimal0By1 = await priceNoDecimal(para.token0Address, para.token1Address, para.priceLower0By1);
-  var priceUpperNoDecimal0By1 = await priceNoDecimal(para.token0Address, para.token1Address, para.priceUpper0By1);
-
-  console.log("Deploy MiningFixRangeBoost Contract: %s/%s", para.token0Symbol,  para.token1Symbol);
+  console.log("Deploy MiningOneSideBoost Contract: %s/%s", para.tokenUniSymbol,  para.tokenLockSymbol);
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-
-  console.log('=====================');
-  console.log('priceLower0By1 (No Decimal) ', priceLowerNoDecimal0By1);
-  console.log('priceUpper0By1 (No Decimal) ', priceUpperNoDecimal0By1);
-
-  var tickLower = Math.round(Math.log(priceLowerNoDecimal0By1) / Math.log(1.0001));
-  var tickUpper = Math.round(Math.log(priceUpperNoDecimal0By1) / Math.log(1.0001));
-
-  console.log('tick lower: ', tickLower);
-  console.log('tick upper: ', tickUpper);
-
 
   console.log("Deploying .....");
 
   var iziAddr = '0x0000000000000000000000000000000000000000';
 
   if (para.boost.toString() != '0') {
-    iziAddr = contracts[net]['izi'];
+    iziAddr = contracts[net]['iZi'];
   }
 
   console.log('iziAddr: ', iziAddr);
 
   const mining = await Mining.deploy(
-    contracts.nftManger,
-    para.token0Address,
-    para.token1Address,
-    para.fee,
+    {
+      uniV3NFTManager: contracts.nftManger,
+      uniTokenAddr: para.tokenUniAddress,
+      lockTokenAddr: para.tokenLockAddress,
+      fee: para.fee
+    },
     [{
       rewardToken: para.rewardTokenAddress0,
       provider: deployer.address,
@@ -137,14 +114,20 @@ async function main() {
         accRewardPerShare: 0,
         rewardPerBlock: para.rewardPerBlock1,
     }],
+    para.lockBoostMultiplier,
     iziAddr,
-    tickUpper,
-    tickLower,
     para.startBlock, para.endBlock
   );
   await mining.deployed();
+
+  // console.log(mining.deployTransaction);
   
-  console.log("MiningFixRangeBoost Contract Address: " , mining.address);
+  await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
+  await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
+
+  console.log("MiningOneSideBoost Contract Address: " , mining.address);
+
+  console.log("iziAddr after deploy: ", await mining.iziToken())
 
 }
 

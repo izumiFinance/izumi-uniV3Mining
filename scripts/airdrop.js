@@ -73,7 +73,7 @@ function getCallingsOfAddress(airdrop, address, amounts) {
 async function main() {
     const addressList = getAddressList(para.fpath);
 
-    var originSendAddrNum = 50;
+    var originSendAddrNum = 0;
 
     var airdropABI = getAirdropABI();
     var airdropAddr = contracts.izumiTest.AIRDROP;
@@ -109,6 +109,8 @@ async function main() {
     var addrDelta = 10;
     var sendNumThisTime = 0;
     for (var addrListStart = originSendAddrNum; addrListStart < addrListLen; addrListStart += addrDelta) {
+
+        var t1 = new Date().getTime();
         var addrListEnd = addrListStart + addrDelta;
         if (addrListEnd > addrListLen) {
             addrListEnd = addrListLen;
@@ -133,9 +135,13 @@ async function main() {
             pk
         );
         const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
         console.log('airdrop addresses: ', addrSubList);
         sendNumThisTime += addrSubList.length;
         console.log('send num: ', originSendAddrNum + sendNumThisTime);
+        var t2 = new Date().getTime();
+        var interval = t2 - t1;
+        console.log('interval: ', interval);
     }
 }
 main().then(() => process.exit(0))

@@ -4,6 +4,8 @@ const contracts = require("./deployed.js");
 const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;
 
+const poolJson = require(contracts.poolJson);
+
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -27,9 +29,16 @@ async function main() {
   const factory = await factoryContract.attach(factoryAddress);
   
   //get the info of pool
-  let pool = await factory.getPool(para.token0Address, para.token1Address, para.fee);
-  console.log('Pool: ', pool);
-  return pool;
+  let poolAddr = await factory.getPool(para.token0Address, para.token1Address, para.fee);
+  console.log('Pool: ', poolAddr);
+
+  const poolContract = await hardhat.ethers.getContractFactory(poolJson.abi, poolJson.bytecode, deployer);
+  const pool = await poolContract.attach(poolAddr);
+  let slot0 = await pool.slot0();
+
+  console.log(slot0);
+  
+  return poolAddr;
 }
 
 main().then(() => process.exit(0))

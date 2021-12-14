@@ -1,9 +1,9 @@
 const hardhat = require("hardhat");
 const contracts = require("./deployed.js");
 const poolJson = require(contracts.poolJson);
-const getPool = require("./getPool.js")
 
-
+const factoryJson = require(contracts.factoryJson);
+const factoryAddress = contracts.factory;
 
 //Example: HARDHAT_NETWORK='izumi_test' node getSlot0FromPool.js 'USDT' 'WETH9' 3000
 
@@ -24,7 +24,12 @@ async function main() {
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
     
   const [deployer] = await hardhat.ethers.getSigners();
-  const poolAddress = await getPool(para.token0Address, para.token1Address, para.fee);
+
+  const factoryContract = await hardhat.ethers.getContractFactory(factoryJson.abi, factoryJson.bytecode, deployer);
+  const factory = await factoryContract.attach(factoryAddress);
+  
+  //get the info of pool
+  const poolAddress = factory.getPool(para.token0Address, para.token1Address, para.fee);
 
   const poolContract = await hardhat.ethers.getContractFactory(poolJson.abi, poolJson.bytecode, deployer);
   const pool = await poolContract.attach(poolAddress);

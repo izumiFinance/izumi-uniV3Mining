@@ -1,5 +1,5 @@
 const hardhat = require("hardhat");
-const contracts = require("./deployed.js");
+const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
@@ -61,6 +61,10 @@ async function priceNoDecimal(tokenAddr0, tokenAddr1, priceDecimal0By1) {
 
   var priceNoDecimal0By1 = priceDecimal0By1 * (10 ** decimal1) / (10 ** decimal0);
   return priceNoDecimal0By1;
+}
+
+async function approve(token, account, destAddr, amount) {
+  await token.connect(account).approve(destAddr, amount);
 }
 
 async function main() {
@@ -130,6 +134,12 @@ async function main() {
     para.startBlock, para.endBlock
   );
   await mining.deployed();
+  await approve(
+    await attachToken(para.rewardTokenAddress), 
+    deployer, 
+    mining.address, 
+    "1000000000000000000000000000000"
+  );
   
   console.log("MiningFixRangeBoost Contract Address: " , mining.address);
 
