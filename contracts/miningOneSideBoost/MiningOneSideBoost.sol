@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 // Uncomment if needed.
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -165,7 +165,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @dev Current total virtual liquidity.
     uint256 public totalVLiquidity;
-    // uint256 public totalLock;
+    /// @dev Current total lock token
+    uint256 public totalLock;
 
 
     /// @dev 2 << 128
@@ -270,7 +271,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address iziTokenAddr_,
             uint256 lastTouchBlock_,
             uint256 totalVLiquidity_,
-            // uint256 totalLock_,
+            uint256 totalLock_,
+            uint256 totalNIZI_,
             uint256 startBlock_,
             uint256 endBlock_
         )
@@ -283,7 +285,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address(iziToken),
             lastTouchBlock,
             totalVLiquidity,
-            // totalLock,
+            totalLock,
+            totalNIZI,
             startBlock,
             endBlock
         );
@@ -361,24 +364,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             );
         }
     }
-
-    // function _checkRangeAndGetVLiquidity(int24 tickLower, int24 tickUpper, uint128 liquidity) internal view returns (
-    //     uint256 vLiquidity,
-    //     uint256 lockAmount
-    // ) {
-    //     (, uint160 avgSqrtPriceX96, , ) = swapPool.getAvgTickPriceWithinHour();
-    //     (uint160 sqrtPriceAX96, uint160 sqrtPriceBX96) = _getSqrtPriceRangeForNFT(avgSqrtPriceX96);
-    //     uint160 sqrtLower = LogPowMath.getSqrtPrice(tickLower);
-    //     uint160 sqrtUpper = LogPowMath.getSqrtPrice(tickUpper);
-    //     require(sqrtLower <= sqrtPriceAX96, "Lower Not Cover!");
-    //     require(sqrtUpper >= sqrtPriceBX96, "Upper Not Cover!");
-    //     uint256 uniAmount = _getAmountUniForNFT(sqrtPriceAX96, sqrtPriceBX96, liquidity);
-        
-    //     require(uniAmount < type(uint128).max, "Amount Uni Can't Exceed 2**128!");
-    //     require(uniAmount >= 1e7, "Amount TokenUni of NFT TOO SMALL!");
-    //     lockAmount = _getLockAmount(avgSqrtPriceX96, uniAmount * lockBoostMultiplier);
-    //     vLiquidity = uniAmount * lockBoostMultiplier / 1e6;
-    // }
 
     /// @notice new a token status when touched.
     function _newTokenStatus(
@@ -567,12 +552,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         );
         uint256 actualAmountUni;
 
-        // mark isDepositWithNFT as false, means the uniswap NFT is created by
-        // this contract. When user calling withdraw(...) in the future
-        // this contract will decrease the liquidity of NFT to 0
-        // and refund corresponding uniToken and tokenSwap from uniswap
-        // newTokenStatus.isDepositWithNFT = false;
-
         if (uniToken < lockToken) {
             (
                 newTokenStatus.nftId,
@@ -622,7 +601,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             address(this),
             newTokenStatus.lockAmount
         );
-        // totalLock += newTokenStatus.lockAmount;
+        totalLock += newTokenStatus.lockAmount;
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
         newTokenStatus.nIZI = numIZI;
@@ -660,79 +639,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         params.amount1Min = 0;
         params.deadline = deadline;
     }
-
-    // /// @notice Deposit a single position.
-    // /// @param tokenId The related position id.
-    // /// @param numIZI the amount of izi to lock
-    // function deposit(uint256 tokenId, uint256 numIZI) external nonReentrant {
-    //     address owner = INonfungiblePositionManager(uniV3NFTManager).ownerOf(tokenId);
-    //     require(owner == msg.sender, "NOT OWNER");
-
-    //     TokenStatus memory newTokenStatus;
-
-    //     // transfer nft to this contract
-    //     newTokenStatus.nftId = tokenId;
-    //     newTokenStatus.isDepositWithNFT = true;
-
-    //     INonfungiblePositionManager(uniV3NFTManager).transferFrom(msg.sender, address(this), tokenId);
-    //     owners[tokenId] = msg.sender;
-    //     bool res = tokenIds[msg.sender].add(tokenId);
-    //     require(res);
-
-    //     (
-    //         ,
-    //         ,
-    //         address token0,
-    //         address token1,
-    //         uint24 fee,
-    //         int24 tickLower,
-    //         int24 tickUpper,
-    //         uint128 liquidity,
-    //         ,
-    //         ,
-    //         ,
-    //     ) = INonfungiblePositionManager(uniV3NFTManager).positions(tokenId);
-
-    //     // alternatively we can compute the pool address with tokens and fee and compare the address directly
-    //     require(token0 == rewardPool.token0, "TOEKN0 NOT MATCH");
-    //     require(token1 == rewardPool.token1, "TOKEN1 NOT MATCH");
-    //     require(fee == rewardPool.fee, "FEE NOT MATCH");
-
-    //     // require the NFT token fully covers [0.5PC, 0.95PC], PC is current price of lockToken/uniToken
-    //     (newTokenStatus.vLiquidity, newTokenStatus.lockAmount) = _checkRangeAndGetVLiquidity(tickLower, tickUpper, liquidity);
-
-
-    //     // make vLiquidity lower
-    //     newTokenStatus.vLiquidity = newTokenStatus.vLiquidity / 1e6;
-    //     newTokenStatus.uniLiquidity = liquidity;
-        
-    //     require(newTokenStatus.vLiquidity > 0, "INVALID TOKEN");
-        
-    //     if (newTokenStatus.lockAmount > 0) {
-    //         IERC20(lockToken).safeTransferFrom(msg.sender, address(this), newTokenStatus.lockAmount);
-    //         // totalLock += newTokenStatus.lockAmount;
-    //     }
-
-    //     // the execution order for the next three lines is crutial
-    //     _updateGlobalStatus();
-    //     _updateVLiquidity(newTokenStatus.vLiquidity, true);
-
-    //     newTokenStatus.nIZI = numIZI;
-    //     if (address(iziToken) == address(0)) {
-    //         // boost is not enabled
-    //         newTokenStatus.nIZI = 0;
-    //     }
-    //     _updateNIZI(newTokenStatus.nIZI, true);
-    //     newTokenStatus.validVLiquidity = _computeValidVLiquidity(newTokenStatus.vLiquidity, newTokenStatus.nIZI);
-    //     require(newTokenStatus.nIZI < Q128 / 6, 'NIZI O');
-    //     _newTokenStatus(newTokenStatus);
-    //     if (newTokenStatus.nIZI > 0) {
-    //         // lock izi in this contract
-    //         iziToken.safeTransferFrom(msg.sender, address(this), newTokenStatus.nIZI);
-    //     }
-
-    //     emit Deposit(msg.sender, tokenId, newTokenStatus.nIZI);
-    // }
 
     /// @notice deposit iZi to an nft token
     /// @param tokenId nft already deposited
@@ -810,11 +716,9 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         if (t.lockAmount > 0) {
             // refund lockToken to user
             IERC20(lockToken).transfer(msg.sender, t.lockAmount);
-            // totalLock -= t.lockAmount;
+            totalLock -= t.lockAmount;
         }
 
-        // if (!t.isDepositWithNFT) {
-        // collect swap fee and withdraw uniToken lockToken from uniswap
         INonfungiblePositionManager.DecreaseLiquidityParams
             memory decUniParams = _withdrawUniswapParam(
                 tokenId,
@@ -832,14 +736,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         INonfungiblePositionManager(uniV3NFTManager).collect(
             collectUniParams
         );
-        // } else {
-        //     // send deposited NFT to user
-        //     IERC721(uniV3NFTManager).transferFrom(
-        //         address(this),
-        //         msg.sender,
-        //         tokenId
-        //     );
-        // }
 
         owners[tokenId] = address(0);
         bool res = tokenIds[msg.sender].remove(tokenId);
@@ -917,6 +813,9 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         view
         returns (uint256)
     {
+        if (_from > _to) {
+            return 0;
+        }
         if (_to <= endBlock) {
             return _to - _from;
         } else if (_from >= endBlock) {

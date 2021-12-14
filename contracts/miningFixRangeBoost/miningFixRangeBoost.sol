@@ -526,6 +526,9 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         view
         returns (uint256)
     {
+        if (_from > _to) {
+            return 0;
+        }
         if (_to <= endBlock) {
             return _to - _from;
         } else if (_from >= endBlock) {
