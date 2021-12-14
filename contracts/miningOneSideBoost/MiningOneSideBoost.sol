@@ -597,7 +597,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         newTokenStatus.vLiquidity = newTokenStatus.vLiquidity / 1e6;
 
         IERC20(lockToken).safeTransferFrom(
-            address(msg.sender),
+            msg.sender,
             address(this),
             newTokenStatus.lockAmount
         );
