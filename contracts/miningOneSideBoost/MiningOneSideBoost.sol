@@ -758,10 +758,9 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             emit CollectReward(msg.sender, tokenId, rewardInfos[i].rewardToken, _reward);
         }
 
-        uint256 nIZI = t.nIZI;
         // update validVLiquidity
-        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
-        _updateTokenStatus(tokenId, validVLiquidity, nIZI);
+        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, t.nIZI);
+        _updateTokenStatus(tokenId, validVLiquidity, t.nIZI);
     }
 
     /// @notice Collect pending reward for a single position.
