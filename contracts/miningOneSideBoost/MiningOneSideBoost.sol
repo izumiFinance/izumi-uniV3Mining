@@ -861,20 +861,18 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice If something goes wrong, we can send back user's nft and locked iZi
     /// @param tokenId The related position id.
     function emergenceWithdraw(uint256 tokenId) external onlyOwner {
-        INonfungiblePositionManager(uniV3NFTManager).safeTransferFrom(address(this), owners[tokenId], tokenId);
-
-        owners[tokenId] = address(0);
-        bool res = tokenIds[msg.sender].remove(tokenId);
-        require(res);
+        address owner = owners[tokenId];
+        require(owner != address(0));
+        INonfungiblePositionManager(uniV3NFTManager).safeTransferFrom(address(this), owner, tokenId);
 
         TokenStatus storage t = tokenStatus[tokenId];
         if (t.nIZI > 0) {
-            iziToken.transfer(msg.sender, t.nIZI);
+            iziToken.transfer(owner, t.nIZI);
         }
         if (t.lockAmount > 0) {
-            IERC20(lockToken).transfer(msg.sender, t.lockAmount);
+            IERC20(lockToken).transfer(owner, t.lockAmount);
         }
-        delete tokenStatus[tokenId];
+        owners[tokenId] = address(0);
     }
 
     /// @notice Set new reward end block.

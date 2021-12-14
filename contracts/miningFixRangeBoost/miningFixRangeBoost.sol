@@ -586,7 +586,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         if (nIZI > 0) {
             _updateNIZI(nIZI, false);
             // refund iZi to user
-            iziToken.safeTransferFrom(address(this), msg.sender, nIZI);
+            iziToken.safeTransfer(msg.sender, nIZI);
             tokenStatus[tokenId].nIZI = 0;
         }
 
@@ -603,12 +603,14 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice If something goes wrong, we can send back user's nft and locked iZi
     /// @param tokenId The related position id.
     function emergenceWithdraw(uint256 tokenId) external onlyOwner {
+        address owner = owners[tokenId];
+        require(owner != address(0));
         uniV3NFTManager.safeTransferFrom(address(this), owners[tokenId], tokenId);
         uint256 nIZI = tokenStatus[tokenId].nIZI;
         if (nIZI > 0) {
-            iziToken.safeTransferFrom(address(this), msg.sender, nIZI);
-            tokenStatus[tokenId].nIZI = 0;
+            iziToken.safeTransfer(owner, nIZI);
         }
+        owners[tokenId] = address(0);
     }
 
     /// @notice Set new reward end block.
