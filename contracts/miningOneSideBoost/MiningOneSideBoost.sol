@@ -534,7 +534,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             require(msg.value >= uniAmount);
         } else {
             IERC20(uniToken).safeTransferFrom(
-                address(msg.sender),
+                msg.sender,
                 address(this),
                 uniAmount
             );
@@ -584,7 +584,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             } else {
                 // refund uniToken
                 IERC20(uniToken).safeTransfer(
-                    address(msg.sender),
+                    msg.sender,
                     uniAmount - actualAmountUni
                 );
             }
