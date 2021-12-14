@@ -741,8 +741,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         bool res = tokenIds[msg.sender].remove(tokenId);
         require(res);
 
-        delete tokenStatus[tokenId];
-
         emit Withdraw(msg.sender, tokenId);
     }
 

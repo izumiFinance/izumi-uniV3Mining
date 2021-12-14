@@ -454,7 +454,6 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
             _updateNIZI(nIZI, false);
             // refund iZi to user
             iziToken.transfer(msg.sender, nIZI);
-            tokenStatus[tokenId].nIZI = 0;
         }
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
@@ -587,7 +586,6 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
             _updateNIZI(nIZI, false);
             // refund iZi to user
             iziToken.safeTransfer(msg.sender, nIZI);
-            tokenStatus[tokenId].nIZI = 0;
         }
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
