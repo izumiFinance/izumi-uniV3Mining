@@ -292,48 +292,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         );
     }
 
-    function _getAmountUniForNFT(
-        uint160 sqrtPriceAX96,
-        uint160 sqrtPriceBX96,
-        uint128 liquidity 
-    ) internal view returns (uint256 uniAmount) {
-        if (uniToken < lockToken) {
-            // uniToken is token0
-            uniAmount = AmountMath.getAmount0ForLiquidity(
-                sqrtPriceAX96,
-                sqrtPriceBX96,
-                liquidity
-            );
-        } else {
-            // uniToken is token1
-            uniAmount = AmountMath.getAmount1ForLiquidity(
-                sqrtPriceAX96,
-                sqrtPriceBX96,
-                liquidity
-            );
-        }
-    }
-
-    function _getSqrtPriceRangeForNFT(
-        uint160 sqrtPriceX96
-    ) internal view returns(uint160 sqrtPriceAX96, uint160 sqrtPriceBX96) {
-        uint256 lower;
-        uint256 upper;
-        if (lockToken < uniToken) {
-            // price for lockToken
-            lower = Math.numDivSqrt2(sqrtPriceX96);
-            upper = Math.numMulSqrt095(sqrtPriceX96);
-        } else {
-            // price for uniToken
-            lower = Math.numDivSqrt095(sqrtPriceX96);
-            upper = Math.numMulSqrt2(sqrtPriceX96);
-        }
-        require(lower > Math.MIN_SQRT_PRICE, "Lower Overflow!");
-        require(upper < Math.MAX_SQRT_PRICE, "Upper Overflow!");
-        sqrtPriceAX96 = uint160(lower);
-        sqrtPriceBX96 = uint160(upper);
-    }
-
     /// @dev compute amount of lockToken
     /// @param sqrtPriceX96 sqrtprice value viewed from uniswap pool
     /// @param uniAmount amount of uniToken user deposits
