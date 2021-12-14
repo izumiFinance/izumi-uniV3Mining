@@ -636,9 +636,8 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice Set new reward per block.
     /// @param rewardIdx which rewardInfo to modify
     /// @param provider New provider
-    function modifyProviderPerBlock(uint rewardIdx, address provider) external onlyOwner {
+    function modifyProvider(uint rewardIdx, address provider) external onlyOwner {
         require(rewardIdx < rewardInfosLen, "OUT OF REWARD INFO RANGE");
-        _updateGlobalStatus();
         rewardInfos[rewardIdx].provider = provider;
         emit ModifyProvider(rewardInfos[rewardIdx].rewardToken, provider);
     }
