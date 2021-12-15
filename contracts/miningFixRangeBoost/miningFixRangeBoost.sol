@@ -422,24 +422,24 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         
     }
 
-    /// @notice withdraw iZi from an nft token
-    /// @param tokenId nft already deposited
-    /// @param deltaNIZI amount of izi to withdraw
-    function withdrawIZI(uint256 tokenId, uint256 deltaNIZI) nonReentrant external {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        require(address(iziToken) != address(0), "NOT BOOST!");
-        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE!");
-        _collectReward(tokenId);
-        TokenStatus memory t = tokenStatus[tokenId];
-        _updateNIZI(deltaNIZI, false);
-        // safemath of 0.8 will revert if deltaNIZI > t.nIZI
-        uint256 nIZI = t.nIZI - deltaNIZI;
-        // update validVLiquidity
-        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
-        _updateTokenStatus(tokenId, t.vLiquidity, validVLiquidity, nIZI);
-        // refund iZi to user
-        iziToken.transfer(msg.sender, deltaNIZI);
-    }
+    // /// @notice withdraw iZi from an nft token
+    // /// @param tokenId nft already deposited
+    // /// @param deltaNIZI amount of izi to withdraw
+    // function withdrawIZI(uint256 tokenId, uint256 deltaNIZI) nonReentrant external {
+    //     require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
+    //     require(address(iziToken) != address(0), "NOT BOOST!");
+    //     require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE!");
+    //     _collectReward(tokenId);
+    //     TokenStatus memory t = tokenStatus[tokenId];
+    //     _updateNIZI(deltaNIZI, false);
+    //     // safemath of 0.8 will revert if deltaNIZI > t.nIZI
+    //     uint256 nIZI = t.nIZI - deltaNIZI;
+    //     // update validVLiquidity
+    //     uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
+    //     _updateTokenStatus(tokenId, t.vLiquidity, validVLiquidity, nIZI);
+    //     // refund iZi to user
+    //     iziToken.transfer(msg.sender, deltaNIZI);
+    // }
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
