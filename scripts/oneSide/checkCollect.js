@@ -8,7 +8,7 @@ const factoryAddress = contracts.factory;
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node viewOneSide.js \
+//     node checkCollect.js \
 //     'ONESIDE_USDC_BIT_3000' 953
 //
 const v = process.argv
@@ -59,9 +59,39 @@ async function getTokenStatus(mining, nftId) {
     lastTouchBock: lastTouchBock.toString(),
   };
 }
+
+async function getRewardInfo(mining, idx) {
+    var rewardToken, provider, accRewardPerShare, rewardPerBlock;
+    [rewardToken, provider, accRewardPerShare, rewardPerBlock] = await mining.rewardInfos(idx);
+    return {
+        rewardToken: rewardToken,
+        provider: provider,
+        accRewardPerShare: accRewardPerShare.toString(),
+        rewardPerBlock: rewardPerBlock.toString()
+    };
+}
+
+async function getBalance(user, rewardInfos) {
+    balance = [];
+    for (var rewardInfo of rewardInfos) {
+        var tokenAddr = rewardInfo.rewardToken;
+        console.log('token addr: ', tokenAddr);
+        var token = await attachToken(tokenAddr);
+        var b = await token.balanceOf(user.address);
+        balance.push(b);
+    }
+    balance = balance.map((b)=>BigNumber(b._hex));
+    return balance;
+}
+function bigNumberListToStr(b) {
+    c = b.map((a)=>a.toFixed(0));
+    return c;
+}
 async function main() {
     
-  const [deployer] = await hardhat.ethers.getSigners();
+  const [deployer, tester] = await hardhat.ethers.getSigners();
+  console.log('deployer: ', deployer.address);
+  console.log('tester: ', tester.address);
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
@@ -71,15 +101,15 @@ async function main() {
   let rewardInfos = [];
   const amountNoDecimal = [];
   for (var i = 0; i < await mining.rewardInfosLen(); i ++) {
-      const rewardInfo = await mining.rewardInfos(i);
+      const rewardInfo = await getRewardInfo(mining, i);
       amountNoDecimal.push(await getNumNoDecimal(rewardInfo.rewardToken, 1));
       rewardInfos.push(rewardInfo);
   }
 
   tokenIds = [para.nftId];
+  var originBalances = await getBalance(tester, rewardInfos);
+  console.log('origin balance: ', originBalances);
   
-  while(true) {
-    let meta = await getMeta(mining);
     for (id of tokenIds) {
 
         const blockNumber = await hardhat.ethers.provider.getBlockNumber();
@@ -88,15 +118,32 @@ async function main() {
         reward = reward.map((r, i)=>{
             return BigNumber(r.toString()).div(amountNoDecimal[i]).toFixed(10);
         });
-        let ts = await getTokenStatus(mining, id);
+        console.log('reward before collect: ' , reward);
+        var tx = await mining.connect(tester).collect(id);
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
-        console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
-        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI);
+
+
+        let rewardAfterCollect = await mining.pendingReward(id);
+
+        rewardAfterCollect = rewardAfterCollect.map((r, i)=>{
+            return BigNumber(r.toString()).div(amountNoDecimal[i]).toFixed(10);
+        });
+        console.log('reward after collect: ', rewardAfterCollect);
+
+        var currBalance = await getBalance(tester, rewardInfos);
+        console.log('curr balance: ', currBalance);
+        for (var i = 0; i < currBalance.length; i ++) {
+            currBalance[i]=currBalance[i].minus(originBalances[i]);
+        }
+        console.log('delta: ', currBalance);
+        console.log('delta: ', bigNumberListToStr(currBalance));
+        currBalance = currBalance.map((r, i)=>{
+            return BigNumber(r.toString()).div(amountNoDecimal[i]).toFixed(10);
+        });
+        console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' ', currBalance);
     }
-    console.log('---------------------------------');
-    sleep.sleep(1);
-  }
+    
   console.log('amountNoDecimal: ', amountNoDecimal);
 }
 

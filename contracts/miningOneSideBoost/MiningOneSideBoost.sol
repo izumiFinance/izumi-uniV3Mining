@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 // Uncomment if needed.
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,6 +18,14 @@ import "../libraries/UniswapOracle.sol";
 
 import "../multicall.sol";
 
+/// @title Interface for WETH9
+interface IWETH9 is IERC20 {
+    /// @notice Deposit ether to get wrapped ether
+    function deposit() external payable;
+
+    /// @notice Withdraw wrapped ether to get ether
+    function withdraw(uint256) external;
+}
 /// @title Simple math library for Max and Min.
 library Math {
 
@@ -148,6 +156,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
+    receive() external payable {}
     function lastTouchAccRewardPerShare(uint256 tokenId) public view returns(uint256[] memory lta) {
         TokenStatus memory t = tokenStatus[tokenId];
         uint256 len = t.lastTouchAccRewardPerShare.length;
@@ -677,23 +686,39 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             totalLock -= t.lockAmount;
         }
 
-        INonfungiblePositionManager.DecreaseLiquidityParams
-            memory decUniParams = _withdrawUniswapParam(
+        INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
+            _withdrawUniswapParam(
                 tokenId,
                 t.uniLiquidity,
                 type(uint256).max
-            );
-        INonfungiblePositionManager.CollectParams
-            memory collectUniParams = _collectUniswapParam(
-                tokenId,
-                msg.sender
-            );
-        INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            decUniParams
+            )
         );
-        INonfungiblePositionManager(uniV3NFTManager).collect(
-            collectUniParams
-        );
+        
+        if (!uniIsETH) {
+            INonfungiblePositionManager(uniV3NFTManager).collect(
+                _collectUniswapParam(
+                    tokenId,
+                    msg.sender
+                )
+            );
+        } else {
+            (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(uniV3NFTManager).collect(
+                _collectUniswapParam(
+                    tokenId,
+                    address(this)
+                    // msg.sender
+                )
+            );
+            (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken) ? (amount0, amount1) : (amount1, amount0);
+            if (amountLock > 0) {
+                IERC20(lockToken).transfer(msg.sender, amountLock);
+            }
+
+            if (amountUni > 0) {
+                IWETH9(uniToken).withdraw(amountUni);
+                safeTransferETH(msg.sender, amountUni);
+            }
+        }
 
         owners[tokenId] = address(0);
         bool res = tokenIds[msg.sender].remove(tokenId);
