@@ -1,5 +1,5 @@
 const hardhat = require("hardhat");
-const contracts = require("./deployed.js");
+const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
@@ -119,7 +119,7 @@ async function main() {
   var iziAddr = '0x0000000000000000000000000000000000000000';
 
   if (para.boost.toString() != '0') {
-    iziAddr = contracts[net]['izi'];
+    iziAddr = contracts[net]['iZi'];
   }
 
   console.log('iziAddr: ', iziAddr);
