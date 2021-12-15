@@ -145,7 +145,6 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     // Events
     event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);
     event Withdraw(address indexed user, uint256 tokenId);
-    event WithdrawNoReward(address indexed user, uint256 tokenId);
     event CollectReward(address indexed user, uint256 tokenId, address token, uint256 amount);
     event ModifyEndBlock(uint256 endBlock);
     event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
@@ -443,10 +442,15 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
-    function withdraw(uint256 tokenId) nonReentrant external {
+    /// @param noReward
+    function withdraw(uint256 tokenId, bool noReward) nonReentrant external {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
-        _collectReward(tokenId);
+        if (noReward) {
+            _updateGlobalStatus();
+        } else {
+            _collectReward(tokenId);
+        }
         uint256 vLiquidity = tokenStatus[tokenId].vLiquidity;
         _updateVLiquidity(vLiquidity, false);
         uint256 nIZI = tokenStatus[tokenId].nIZI;
@@ -567,32 +571,6 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
             }
         }
         return _reward;
-    }
-
-    /// @notice Widthdraw a single position without claiming rewards.
-    /// @param tokenId The related position id.
-    function withdrawNoReward(uint256 tokenId) nonReentrant public {
-        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
-
-        // The collecting procedure is commenced out.
-        // collectReward(tokenId);
-        // The global status needs update since the vLiquidity is changed after withdraw.
-        _updateGlobalStatus();
-
-        uint256 vLiquidity = tokenStatus[tokenId].vLiquidity;
-        _updateVLiquidity(vLiquidity, false);
-        uint256 nIZI = tokenStatus[tokenId].nIZI;
-        if (nIZI > 0) {
-            _updateNIZI(nIZI, false);
-            // refund iZi to user
-            iziToken.safeTransfer(msg.sender, nIZI);
-        }
-
-        uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
-        owners[tokenId] = address(0);
-        tokenIds[msg.sender].remove(tokenId);
-
-        emit WithdrawNoReward(msg.sender, tokenId);
     }
 
 
