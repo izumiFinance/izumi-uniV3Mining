@@ -45,18 +45,6 @@ library Math {
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
     }
-    function numMulSqrt2(uint256 a) internal pure returns (uint256) {
-        return a * 1414213 / 1e6;
-    }
-    function numMulSqrt095(uint256 a) internal pure returns (uint256) {
-        return a * 974679 / 1e6;
-    }
-    function numDivSqrt2(uint256 a) internal pure returns (uint256) {
-        return a * 1e6 / 1414213;
-    }
-    function numDivSqrt095(uint256 a) internal pure returns (uint256) {
-        return a * 1e6 / 974679;
-    }
 
     function tickFloor(int24 tick, int24 tickSpacing)
         internal
