@@ -2,6 +2,7 @@
 const { linkLibraries } = require("./utils/linkLibraries.js"); 
 const artifacts = {                                                                                                                        
     UniswapV3Factory: require("@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json"),
+    UniswapV3Pool: require("@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json"),
     SwapRouter: require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json"),
     NFTDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/libraries/NFTDescriptor.sol/NFTDescriptor.json"),
     NonfungibleTokenPositionDescriptor: require("@uniswap/v3-periphery/artifacts/contracts/NonfungibleTokenPositionDescriptor.sol/NonfungibleTokenPositionDescriptor.json"),
@@ -15,6 +16,12 @@ async function deployFactory(signer) {
 
     await contract.deployed();
     return contract;
+}
+
+async function getPool(signer, poolAddr) {
+  const ContractFactory = await ethers.getContractFactory(artifacts.UniswapV3Pool.abi, artifacts.UniswapV3Pool.bytecode, signer);
+  const contract = ContractFactory.attach(poolAddr);
+  return contract;
 }
 
 // deploy router contract
@@ -94,6 +101,8 @@ async function deployUniV3(wethAddr, signer) {
   };
 }
 
+
 module.exports = {
-    deployUniV3
+    deployUniV3,
+    getPool,
 }
