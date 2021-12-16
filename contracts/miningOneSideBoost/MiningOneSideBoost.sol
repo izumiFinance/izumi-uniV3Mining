@@ -415,7 +415,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     /// @return tickLeft
     /// @return tickRight
     function _getPriceAndTickRange() private view returns (uint160 sqrtPriceX96, int24 tickLeft, int24 tickRight) {
-        (int24 avgTick, uint160 avgSqrtPriceX96, int24 currTick, ) = swapPool.getAvgTickPriceWithinHour();
+        (int24 avgTick, uint160 avgSqrtPriceX96, int24 currTick, ) = swapPool.getAvgTickPriceWithin2Hour();
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             rewardPool.fee
         );

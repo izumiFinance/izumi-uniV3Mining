@@ -87,22 +87,21 @@ library UniswapOracle {
     }
 
     // note if we call this interface, we must ensure that the 
-    //    oldest observation preserved in pool is older than 1h ago
-    function _getAvgTickWithinHour(address pool, int56 latestTickCumulative)
+    //    oldest observation preserved in pool is older than 2h ago
+    function _getAvgTickFromTarget(address pool, uint32 targetTimestamp, int56 latestTickCumu, uint32 latestTimestamp)
         private
         view
         returns (int24 tick) 
     {
         uint32[] memory secondsAgo = new uint32[](1);
-        // 1h = 3600s
-        secondsAgo[0] = 3600;
+        secondsAgo[0] = uint32(block.timestamp) - targetTimestamp;
 
         int56[] memory tickCumulatives;
-        // useless to compute avg tick and price
-        uint160[] memory secondsPerLiquidity;
-        (tickCumulatives, secondsPerLiquidity) = IUniswapV3Pool(pool).observe(secondsAgo);
+        
+        (tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgo);
+        uint56 timeDelta = latestTimestamp - targetTimestamp;
 
-        int56 tickAvg = (latestTickCumulative - tickCumulatives[0]) / 3600;
+        int56 tickAvg = (latestTickCumu - tickCumulatives[0]) / int56(timeDelta);
         tick = int24(tickAvg);
     }
 
@@ -110,7 +109,7 @@ library UniswapOracle {
     /// @param pool address of uniswap pool
     /// @return tick computed avg tick
     /// @return sqrtPriceX96 computed avg sqrt price, in the form of 96-bit fixed point number
-    function getAvgTickPriceWithinHour(address pool)
+    function getAvgTickPriceWithin2Hour(address pool)
         internal
         view
         returns (int24 tick, uint160 sqrtPriceX96, int24 currTick, uint160 currSqrtPriceX96)
@@ -133,8 +132,10 @@ library UniswapOracle {
                 // there is only 1 valid observation in the pool
                 return (slot0.tick, slot0.sqrtPriceX96, slot0.tick, slot0.sqrtPriceX96);
             }
+            uint32 twoHourAgo = uint32(block.timestamp - 7200);
+
             // now there must be at least 2 valid observations in the pool
-            if (oldestObservation.blockTimestamp >= block.timestamp - 3600) {
+            if (twoHourAgo <= oldestObservation.blockTimestamp || latestObservation.blockTimestamp <= oldestObservation.blockTimestamp + 3600) {
                 // the oldest observation updated within 1h
                 // we can not safely call IUniswapV3Pool.observe(...) for it 1h ago
                 uint56 timeDelta = latestObservation.blockTimestamp - oldestObservation.blockTimestamp;
@@ -143,7 +144,11 @@ library UniswapOracle {
             } else {
                 // we are sure that the oldest observation is old enough
                 // we can safely call IUniswapV3Pool.observe(...) for it 1h ago
-                tick = _getAvgTickWithinHour(pool, latestObservation.tickCumulative);
+                uint32 targetTimestamp = twoHourAgo;
+                if (targetTimestamp + 3600 > latestObservation.blockTimestamp) {
+                    targetTimestamp = latestObservation.blockTimestamp - 3600;
+                }
+                tick = _getAvgTickFromTarget(pool, targetTimestamp, latestObservation.tickCumulative, latestObservation.blockTimestamp);
             }
             sqrtPriceX96 = LogPowMath.getSqrtPrice(tick);
             return (tick, sqrtPriceX96, slot0.tick, slot0.sqrtPriceX96);

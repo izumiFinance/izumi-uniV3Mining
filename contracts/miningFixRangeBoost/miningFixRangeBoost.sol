@@ -440,9 +440,9 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     //     iziToken.transfer(msg.sender, deltaNIZI);
     // }
 
-    /// @notice Widthdraw a single position.
+    /// @notice withdraw a single position.
     /// @param tokenId The related position id.
-    /// @param noReward
+    /// @param noReward true if donot collect reward
     function withdraw(uint256 tokenId, bool noReward) nonReentrant external {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
