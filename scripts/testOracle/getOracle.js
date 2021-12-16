@@ -21,7 +21,7 @@ async function main() {
   const testOracle = TestOracle.attach(contracts[net].testOracle);
   
   var tick, sqrtPriceX96, currTick, currSqrtPriceX96;
-  [tick, sqrtPriceX96, currTick, currSqrtPriceX96] = await testOracle.getAvgTickPriceWithinHour(para.poolAddr);
+  [tick, sqrtPriceX96, currTick, currSqrtPriceX96] = await testOracle.getAvgTickPriceWithin2Hour(para.poolAddr);
   console.log('tick: ', tick);
   console.log('curr tick: ', currTick);
   console.log('sqrt price x96: ', sqrtPriceX96);
