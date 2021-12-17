@@ -44,6 +44,7 @@ async function getMeta(mining) {
   return {
     totalVLiquidity: totalVLiquidity.toString(),
     totalNIZI: totalNIZI.toString(),
+    endBlock: endBlock.toString(),
   }
 }
 async function getTokenStatus(mining, nftId) {
@@ -92,7 +93,7 @@ async function main() {
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
         console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
-        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI);
+        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock);
     }
     console.log('---------------------------------');
     sleep.sleep(1);
