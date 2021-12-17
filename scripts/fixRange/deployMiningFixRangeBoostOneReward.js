@@ -118,7 +118,7 @@ async function main() {
   console.log('iziAddr: ', iziAddr);
 
   const mining = await Mining.deploy(
-    contracts.nftManger,
+    contracts[net].nftManger,
     para.token0Address,
     para.token1Address,
     para.fee,

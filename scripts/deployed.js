@@ -2,18 +2,19 @@ const contracts = {
 	// coinbase
 	coinbase: "0xD4D6F030520649c7375c492D37ceb56571f768D0",
 
-	// uniswapV3
-	nftManger: "0x5202254db4B1Eb6632D54B6860ebC85892889fD1",
 	nftMangerJson: "@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json",
-	factory: "0x8c05B8e31C5f94EDF49173f2b04E637a81F6510f",
 	factoryJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json",
 	poolJson: "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json",
 
-	swapRouter: "0x6d44131a2A84B49Fa1F73e7c854A0c90982ffdB5",
 	swapRouterJson: "@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json",
 
 	// tokens and contracts
     izumiTest: {
+		// uniswapV3
+		nftManger: "0x5202254db4B1Eb6632D54B6860ebC85892889fD1",
+		factory: "0x8c05B8e31C5f94EDF49173f2b04E637a81F6510f",
+		swapRouter: "0x6d44131a2A84B49Fa1F73e7c854A0c90982ffdB5",
+
 		USDT6: "0x4e9c1b4BB1A38e4Aa1be3aa53Ab757ec1961e25e",
 		USDT: "0x44B61a549B16ba204c4c6dA053EC2BB0Cf97bb24",
 		USDC: "0xe507AAC9eFb2A08F53C7BC73B3B1b8BCf883E41B",
@@ -30,7 +31,12 @@ const contracts = {
 		ONESIDE_USDC_BIT_3000: "0x4177ae2fBB01cD2704ed36864678B43DFf1D365B",
 		// ONESIDE_USDC_IZI_3000: "0x41FAe2a2e93B1d775aef0975F4FBDe48C13b81A9",
 		// ONESIDE_USDT_BIT_3000: "0x1B4B2b2AaF55bDd83F9611c6d9E51bb6b7C13EF3",
+
 		ONESIDE_WETH9_IZI_3000: "0xD9b9679FCbc6CcbeA0b96077591c685a7ae6cbA2",
+		ONESIDE_WETH9_IZI_3000_EMERGENCY_WITHDRAW: '0xdD6CA273955C1dAfBd52E38cC444db2480644c5C',
+
+		FIXRANGE_USDC_USDT_100: "0x2A64352478dc0E7BCA39FF22186C1b83844725ad",
+		FIXRANGE_USDC_USDT_100_EMERGENCY_WITHDRAW: "0x7200a5638Ea19857c970FD4630364C2b4bcafad3",
 
 		testOracle: '0xEC65Ba571bB4f449065Ba0c2A0795F038109e4fb',
     },

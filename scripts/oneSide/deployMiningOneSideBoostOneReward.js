@@ -91,7 +91,7 @@ async function main() {
 
   const mining = await Mining.deploy(
     {
-      uniV3NFTManager: contracts.nftManger,
+      uniV3NFTManager: contracts[net].nftManger,
       uniTokenAddr: para.tokenUniAddress,
       lockTokenAddr: para.tokenLockAddress,
       fee: para.fee
