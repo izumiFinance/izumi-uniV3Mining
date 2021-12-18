@@ -584,8 +584,11 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uniV3NFTManager.safeTransferFrom(address(this), owners[tokenId], tokenId);
         uint256 nIZI = tokenStatus[tokenId].nIZI;
         if (nIZI > 0) {
+            // we should ensure nft refund to user
+            // and donot care if izi or lock token refund failed
             iziToken.transfer(owner, nIZI);
         }
+        // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
     }
 

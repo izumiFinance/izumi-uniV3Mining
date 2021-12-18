@@ -835,11 +835,16 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
         TokenStatus storage t = tokenStatus[tokenId];
         if (t.nIZI > 0) {
+            // we should ensure nft refund to user
+            // and donot care if izi or lock token refund failed
             iziToken.transfer(owner, t.nIZI);
         }
         if (t.lockAmount > 0) {
+            // we should ensure nft refund to user
+            // and donot care if izi or lock token refund failed
             IERC20(lockToken).transfer(owner, t.lockAmount);
         }
+        // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
     }
 
