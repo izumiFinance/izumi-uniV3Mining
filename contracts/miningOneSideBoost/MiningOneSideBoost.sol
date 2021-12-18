@@ -631,7 +631,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     //     uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
     //     _updateTokenStatus(tokenId, validVLiquidity, nIZI);
     //     // refund iZi to user
-    //     iziToken.transfer(msg.sender, deltaNIZI);
+    //     iziToken.safeTransfer(msg.sender, deltaNIZI);
     // }
 
     // fill INonfungiblePositionManager.CollectParams struct to call INonfungiblePositionManager.collect(...)
@@ -666,11 +666,11 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         if (t.nIZI > 0) {
             _updateNIZI(t.nIZI, false);
             // refund iZi to user
-            iziToken.transfer(msg.sender, t.nIZI);
+            iziToken.safeTransfer(msg.sender, t.nIZI);
         }
         if (t.lockAmount > 0) {
             // refund lockToken to user
-            IERC20(lockToken).transfer(msg.sender, t.lockAmount);
+            IERC20(lockToken).safeTransfer(msg.sender, t.lockAmount);
             totalLock -= t.lockAmount;
         }
 
@@ -699,7 +699,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             );
             (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken) ? (amount0, amount1) : (amount1, amount0);
             if (amountLock > 0) {
-                IERC20(lockToken).transfer(msg.sender, amountLock);
+                IERC20(lockToken).safeTransfer(msg.sender, amountLock);
             }
 
             if (amountUni > 0) {

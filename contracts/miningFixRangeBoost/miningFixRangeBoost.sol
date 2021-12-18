@@ -437,7 +437,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     //     uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
     //     _updateTokenStatus(tokenId, t.vLiquidity, validVLiquidity, nIZI);
     //     // refund iZi to user
-    //     iziToken.transfer(msg.sender, deltaNIZI);
+    //     iziToken.safeTransfer(msg.sender, deltaNIZI);
     // }
 
     /// @notice withdraw a single position.
@@ -457,7 +457,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         if (nIZI > 0) {
             _updateNIZI(nIZI, false);
             // refund iZi to user
-            iziToken.transfer(msg.sender, nIZI);
+            iziToken.safeTransfer(msg.sender, nIZI);
         }
 
         uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
@@ -584,7 +584,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uniV3NFTManager.safeTransferFrom(address(this), owners[tokenId], tokenId);
         uint256 nIZI = tokenStatus[tokenId].nIZI;
         if (nIZI > 0) {
-            iziToken.safeTransfer(owner, nIZI);
+            iziToken.transfer(owner, nIZI);
         }
         owners[tokenId] = address(0);
     }
