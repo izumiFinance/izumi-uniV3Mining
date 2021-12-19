@@ -826,7 +826,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
     // Control fuctions for the contract owner and operators.
 
-    /// @notice If something goes wrong, we can send back user's nft and locked iZi
+    /// @notice If something goes wrong, we can send back user's nft and locked assets
     /// @param tokenId The related position id.
     function emergenceWithdraw(uint256 tokenId) external onlyOwner {
         address owner = owners[tokenId];
@@ -836,12 +836,12 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         TokenStatus storage t = tokenStatus[tokenId];
         if (t.nIZI > 0) {
             // we should ensure nft refund to user
-            // and donot care if izi or lock token refund failed
+            // omit the case when transfer() returns false unexpectedly
             iziToken.transfer(owner, t.nIZI);
         }
         if (t.lockAmount > 0) {
             // we should ensure nft refund to user
-            // and donot care if izi or lock token refund failed
+            // omit the case when transfer() returns false unexpectedly
             IERC20(lockToken).transfer(owner, t.lockAmount);
         }
         // makesure user cannot withdraw/depositIZI or collect reward on this nft
@@ -870,7 +870,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     }
 
 
-    /// @notice Set new reward per block.
+    /// @notice Set new reward provider.
     /// @param rewardIdx which rewardInfo to modify
     /// @param provider New provider
     function modifyProvider(uint rewardIdx, address provider) external onlyOwner {

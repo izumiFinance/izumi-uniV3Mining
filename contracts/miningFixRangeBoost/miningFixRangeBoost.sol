@@ -614,7 +614,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     }
 
 
-    /// @notice Set new reward per block.
+    /// @notice Set new reward provider.
     /// @param rewardIdx which rewardInfo to modify
     /// @param provider New provider
     function modifyProvider(uint rewardIdx, address provider) external onlyOwner {
