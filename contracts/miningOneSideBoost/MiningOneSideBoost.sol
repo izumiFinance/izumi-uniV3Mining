@@ -417,12 +417,9 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             // tokenReward < 2^25 * 2^64 * 2*10, 15 years, 1000 r/block
-            uint256 tokenReward = (currBlockNumber - lastTouchBlock) *
-                rewardInfos[i].rewardPerBlock;
+            uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
             // tokenReward * Q128 < 2^(25 + 64 + 10 + 128)
-            rewardInfos[i].accRewardPerShare =
-                rewardInfos[i].accRewardPerShare +
-                ((tokenReward * FixedPoints.Q128) / totalVLiquidity);
+            rewardInfos[i].accRewardPerShare = rewardInfos[i].accRewardPerShare + ((tokenReward * FixedPoints.Q128) / totalVLiquidity);
         }
         lastTouchBlock = currBlockNumber;
     }
@@ -734,9 +731,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
                         address(this)
                     )
                 );
-            (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)
-                ? (amount0, amount1)
-                : (amount1, amount0);
+            (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)? (amount0, amount1) : (amount1, amount0);
             if (amountLock > 0) {
                 IERC20(lockToken).safeTransfer(msg.sender, amountLock);
             }
