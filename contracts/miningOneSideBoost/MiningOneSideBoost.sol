@@ -226,7 +226,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         );
 
         address weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
-        require(weth != poolParams.lockTokenAddr, "weth not supported!");
+        require(weth != poolParams.lockTokenAddr, "WETH NOT SUPPORT");
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
         uniToken = poolParams.uniTokenAddr;
@@ -241,11 +241,11 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             uniToken,
             poolParams.fee
         );
-        require(swapPool != address(0), "No Uniswap Pool!");
+        require(swapPool != address(0), "NO UNI POOL");
 
         rewardInfosLen = _rewardInfos.length;
-        require(rewardInfosLen > 0, "No Rewards!");
-        require(rewardInfosLen < 3, "At most 2 Rewards!");
+        require(rewardInfosLen > 0, "NO REWARD");
+        require(rewardInfosLen < 3, "AT MOST 2 REWARDS");
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             rewardInfos[i] = _rewardInfos[i];
@@ -440,7 +440,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     }
 
     /// @dev get sqrtPrice of pool(uniToken/tokenSwap/fee)
-    ///    and compute tick range converted from [PriceUni * 0.5, PriceUni]
+    ///    and compute tick range converted from [TICK_MIN, PriceUni] or [PriceUni, TICK_MAX]
     /// @return sqrtPriceX96 current sqrtprice value viewed from uniswap pool, is a 96-bit fixed point number
     ///    note this value might mean price of lockToken/uniToken (if uniToken < lockToken)
     ///    or price of uniToken / lockToken (if uniToken > lockToken)
@@ -521,29 +521,21 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         require(success, "STE");
     }
 
-    // function refundETH() external payable override {
-    //     if (address(this).balance > 0) TransferHelper.safeTransferETH(msg.sender, address(this).balance);
-    // }
     function depositWithuniToken(
         uint256 uniAmount,
         uint256 numIZI,
         uint256 deadline
     ) external payable nonReentrant {
-        require(
-            uniAmount < type(uint128).max,
-            "Amount Uni Can't Exceed 2**128!"
-        );
-        require(uniAmount >= 1e7, "Amount of TokenUni TOO SMALL!");
-        require(uniAmount < FixedPoints.Q96 / 3, "Amount of TokenUni TOO LARGE!");
+        require(uniAmount >= 1e7, "TOKENUNI AMOUNT TOO SMALL");
+        require(uniAmount < FixedPoints.Q96 / 3, "TOKENUNI AMOUNT TOO LARGE");
         if (uniIsETH) {
-            require(msg.value >= uniAmount);
+            require(msg.value >= uniAmount, "ETHER INSUFFICIENT");
         } else {
             IERC20(uniToken).safeTransferFrom(
                 msg.sender,
                 address(this),
                 uniAmount
             );
-            // IERC20(uniToken).safeApprove(uniV3NFTManager, uniAmount);
         }
         (
             uint160 sqrtPriceX96,
@@ -587,7 +579,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         bool res = tokenIds[msg.sender].add(newTokenStatus.nftId);
         require(res);
 
-        // IERC20(uniToken).safeApprove(uniV3NFTManager, 0);
         if (actualAmountUni < uniAmount) {
             if (uniIsETH) {
                 // refund uniToken
@@ -611,6 +602,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
             sqrtPriceX96,
             newTokenStatus.vLiquidity
         );
+
         // make vLiquidity lower
         newTokenStatus.vLiquidity = newTokenStatus.vLiquidity / 1e6;
 
@@ -672,8 +664,8 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         nonReentrant
     {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        require(address(iziToken) != address(0), "NOT BOOST!");
-        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE!");
+        require(address(iziToken) != address(0), "NOT BOOST");
+        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE");
         _collectReward(tokenId);
         TokenStatus memory t = tokenStatus[tokenId];
         _updateNIZI(deltaNIZI, true);
