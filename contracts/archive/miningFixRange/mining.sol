@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "../multicall.sol";
+import "../../multicall.sol";
 
 /// @title Simple math library for Max and Min.
 library Math {
