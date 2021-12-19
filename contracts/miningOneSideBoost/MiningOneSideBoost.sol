@@ -476,6 +476,17 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         sqrtPriceX96 = avgSqrtPriceX96;
     }
 
+    function getOraclePrice()
+        external
+        view
+        returns (
+            int24 avgTick,
+            uint160 avgSqrtPriceX96
+        )
+    {
+        (avgTick, avgSqrtPriceX96, , ) = swapPool.getAvgTickPriceWithin2Hour();
+    }
+
     // fill INonfungiblePositionManager.MintParams struct to call INonfungiblePositionManager.mint(...)
     function _mintUniswapParam(
         uint256 uniAmount,
