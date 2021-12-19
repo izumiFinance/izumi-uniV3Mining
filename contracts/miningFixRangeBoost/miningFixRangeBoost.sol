@@ -260,8 +260,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         require(liquidity >= 1e6, "LIQUIDITY TOO SMALL");
         uint256 validRange = uint24(
             Math.max(
-                Math.min(rewardUpperTick, tickUpper) -
-                    Math.max(rewardLowerTick, tickLower),
+                Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick, tickLower),
                 0
             )
         );
@@ -344,11 +343,8 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            uint256 tokenReward = (currBlockNumber - lastTouchBlock) *
-                rewardInfos[i].rewardPerBlock;
-            rewardInfos[i].accRewardPerShare =
-                rewardInfos[i].accRewardPerShare +
-                ((tokenReward * Q128) / totalVLiquidity);
+            uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
+            rewardInfos[i].accRewardPerShare = rewardInfos[i].accRewardPerShare + ((tokenReward * Q128) / totalVLiquidity);
         }
         lastTouchBlock = currBlockNumber;
     }
@@ -361,10 +357,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         if (totalNIZI == 0) {
             return vLiquidity;
         }
-        uint256 iziVLiquidity = (vLiquidity *
-            4 +
-            (totalVLiquidity * nIZI * 6) /
-            totalNIZI) / 10;
+        uint256 iziVLiquidity = (vLiquidity * 4 + (totalVLiquidity * nIZI * 6) / totalNIZI) / 10;
         return Math.min(iziVLiquidity, vLiquidity);
     }
 
