@@ -559,7 +559,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
                 newTokenStatus.nftId,
                 newTokenStatus.uniLiquidity,
                 actualAmountUni,
-
             ) = INonfungiblePositionManager(uniV3NFTManager).mint{
                 value: msg.value
             }(uniParams);
@@ -762,9 +761,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
         _updateGlobalStatus();
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            uint256 _reward = (t.validVLiquidity *
-                (rewardInfos[i].accRewardPerShare -
-                    t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
+            uint256 _reward = (t.validVLiquidity * (rewardInfos[i].accRewardPerShare - t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
             if (_reward > 0) {
                 IERC20(rewardInfos[i].rewardToken).safeTransferFrom(
                     rewardInfos[i].provider,
@@ -860,14 +857,9 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
                 lastTouchBlock,
                 block.number
             ) * rewardInfos[i].rewardPerBlock;
-            uint256 rewardPerShare = rewardInfos[i].accRewardPerShare +
-                (tokenReward * FixedPoints.Q128) /
-                totalVLiquidity;
+            uint256 rewardPerShare = rewardInfos[i].accRewardPerShare + (tokenReward * FixedPoints.Q128) / totalVLiquidity;
             // l * (currentAcc - lastAcc)
-            _reward[i] =
-                (t.validVLiquidity *
-                    (rewardPerShare - t.lastTouchAccRewardPerShare[i])) /
-                FixedPoints.Q128;
+            _reward[i] = (t.validVLiquidity * (rewardPerShare - t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
         }
         return _reward;
     }

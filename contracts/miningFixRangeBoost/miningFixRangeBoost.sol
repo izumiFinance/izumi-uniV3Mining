@@ -21,9 +21,11 @@ library Math {
     function min(int24 a, int24 b) internal pure returns (int24) {
         return a < b ? a : b;
     }
-    function max(uint256 a, uint256 b) internal pure returns(uint256) {
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
         return a >= b ? a : b;
     }
+
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
     }
@@ -120,11 +122,16 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
-    function lastTouchAccRewardPerShare(uint256 tokenId) external view returns(uint256[] memory lta) {
+
+    function lastTouchAccRewardPerShare(uint256 tokenId)
+        external
+        view
+        returns (uint256[] memory lta)
+    {
         TokenStatus memory t = tokenStatus[tokenId];
         uint256 len = t.lastTouchAccRewardPerShare.length;
         lta = new uint256[](len);
-        for (uint256 i = 0; i < len; i ++) {
+        for (uint256 i = 0; i < len; i++) {
             lta[i] = t.lastTouchAccRewardPerShare[i];
         }
         return lta;
@@ -138,16 +145,23 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @dev Current total virtual liquidity.
     uint256 public totalVLiquidity;
 
-
     /// @dev 2 << 128
     uint256 internal constant Q128 = 0x100000000000000000000000000000000;
 
     // Events
     event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);
     event Withdraw(address indexed user, uint256 tokenId);
-    event CollectReward(address indexed user, uint256 tokenId, address token, uint256 amount);
+    event CollectReward(
+        address indexed user,
+        uint256 tokenId,
+        address token,
+        uint256 amount
+    );
     event ModifyEndBlock(uint256 endBlock);
-    event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
+    event ModifyRewardPerBlock(
+        address indexed rewardToken,
+        uint256 rewardPerBlock
+    );
     event ModifyProvider(address indexed rewardToken, address provider);
 
     constructor(
@@ -170,10 +184,10 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         rewardPool.fee = fee;
 
         rewardInfosLen = _rewardInfos.length;
-        require(rewardInfosLen > 0, "No Rewards!");
-        require(rewardInfosLen < 3, "At most 2 Rewards!");
+        require(rewardInfosLen > 0, "NO REWARD");
+        require(rewardInfosLen < 3, "AT MOST 2 REWARDS");
 
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             rewardInfos[i] = _rewardInfos[i];
             rewardInfos[i].accRewardPerShare = 0;
         }
@@ -192,7 +206,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         totalVLiquidity = 0;
         totalNIZI = 0;
     }
-    
+
     /// @notice Get the overall info for the mining contract.
     function getMiningContractInfo()
         external
@@ -212,7 +226,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         )
     {
         rewardInfos_ = new RewardInfo[](rewardInfosLen);
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             rewardInfos_[i] = rewardInfos[i];
         }
         return (
@@ -234,8 +248,8 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @param tickLower The lower tick of a position.
     /// @param tickUpper The upper tick of a position.
     /// @param liquidity The liquidity of a a position.
-    /// @dev vLiquidity = liquidity * validRange^2 / 1e6, where the validRange is the tick amount of the 
-    /// intersection between the position and the reward range. 
+    /// @dev vLiquidity = liquidity * validRange^2 / 1e6, where the validRange is the tick amount of the
+    /// intersection between the position and the reward range.
     /// We divided it by 1e6 to keep vLiquidity smaller than 1e128. This is safe since liqudity is usually a large number.
     function _getVLiquidityForNFT(
         int24 tickLower,
@@ -246,11 +260,12 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         require(liquidity >= 1e6, "LIQUIDITY TOO SMALL");
         uint256 validRange = uint24(
             Math.max(
-                Math.min(rewardUpperTick, tickUpper) - Math.max(rewardLowerTick, tickLower),
+                Math.min(rewardUpperTick, tickUpper) -
+                    Math.max(rewardLowerTick, tickLower),
                 0
             )
         );
-        vLiquidity = validRange * validRange * uint256(liquidity) / 1e6;
+        vLiquidity = (validRange * validRange * uint256(liquidity)) / 1e6;
         return vLiquidity;
     }
 
@@ -262,17 +277,18 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 nIZI
     ) internal {
         TokenStatus storage t = tokenStatus[tokenId];
-        
+
         t.vLiquidity = vLiquidity;
         t.validVLiquidity = validVLiquidity;
         t.nIZI = nIZI;
 
         t.lastTouchBlock = lastTouchBlock;
         t.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
     }
+
     /// @notice update a token status when touched
     function _updateTokenStatus(
         uint256 tokenId,
@@ -281,14 +297,14 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         uint256 nIZI
     ) internal {
         TokenStatus storage t = tokenStatus[tokenId];
-        
+
         t.vLiquidity = vLiquidity;
         // when not boost, validVL == vL
         t.validVLiquidity = validVLiquidity;
         t.nIZI = nIZI;
 
         t.lastTouchBlock = lastTouchBlock;
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
     }
@@ -327,14 +343,17 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
             return;
         }
 
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
-            uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
-            rewardInfos[i].accRewardPerShare = rewardInfos[i].accRewardPerShare + ((tokenReward * Q128) / totalVLiquidity);
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
+            uint256 tokenReward = (currBlockNumber - lastTouchBlock) *
+                rewardInfos[i].rewardPerBlock;
+            rewardInfos[i].accRewardPerShare =
+                rewardInfos[i].accRewardPerShare +
+                ((tokenReward * Q128) / totalVLiquidity);
         }
         lastTouchBlock = currBlockNumber;
     }
 
-    function _computeValidVLiquidity(uint256 vLiquidity, uint256 nIZI) 
+    function _computeValidVLiquidity(uint256 vLiquidity, uint256 nIZI)
         internal
         view
         returns (uint256)
@@ -342,14 +361,20 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         if (totalNIZI == 0) {
             return vLiquidity;
         }
-        uint256 iziVLiquidity = (vLiquidity * 4 + totalVLiquidity * nIZI * 6 / totalNIZI) / 10;
+        uint256 iziVLiquidity = (vLiquidity *
+            4 +
+            (totalVLiquidity * nIZI * 6) /
+            totalNIZI) / 10;
         return Math.min(iziVLiquidity, vLiquidity);
     }
 
     /// @notice Deposit a single position.
     /// @param tokenId The related position id.
     /// @param nIZI the amount of izi to lock
-    function deposit(uint256 tokenId, uint256 nIZI) external returns (uint256 vLiquidity) {
+    function deposit(uint256 tokenId, uint256 nIZI)
+        external
+        returns (uint256 vLiquidity)
+    {
         address owner = uniV3NFTManager.ownerOf(tokenId);
         require(owner == msg.sender, "NOT OWNER");
 
@@ -391,7 +416,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         }
         _updateNIZI(nIZI, true);
         uint256 validVLiquidity = _computeValidVLiquidity(vLiquidity, nIZI);
-        require(nIZI < Q128 / 6, 'NIZI O');
+        require(nIZI < Q128 / 6, "NIZI O");
         _newTokenStatus(tokenId, vLiquidity, validVLiquidity, nIZI);
         if (nIZI > 0) {
             // lock izi in this contract
@@ -401,13 +426,17 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         emit Deposit(msg.sender, tokenId, nIZI);
         return vLiquidity;
     }
+
     /// @notice deposit iZi to an nft token
     /// @param tokenId nft already deposited
     /// @param deltaNIZI amount of izi to deposit
-    function depositIZI(uint256 tokenId, uint256 deltaNIZI) nonReentrant external {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        require(address(iziToken) != address(0), "NOT BOOST!");
-        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE!");
+    function depositIZI(uint256 tokenId, uint256 deltaNIZI)
+        external
+        nonReentrant
+    {
+        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
+        require(address(iziToken) != address(0), "NOT BOOST");
+        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE");
         _collectReward(tokenId);
         TokenStatus memory t = tokenStatus[tokenId];
         _updateNIZI(deltaNIZI, true);
@@ -418,13 +447,12 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
         // transfer iZi from user
         iziToken.safeTransferFrom(msg.sender, address(this), deltaNIZI);
-        
     }
 
     /// @notice withdraw a single position.
     /// @param tokenId The related position id.
     /// @param noReward true if donot collect reward
-    function withdraw(uint256 tokenId, bool noReward) nonReentrant external {
+    function withdraw(uint256 tokenId, bool noReward) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         if (noReward) {
@@ -455,12 +483,21 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         TokenStatus memory t = tokenStatus[tokenId];
 
         _updateGlobalStatus();
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             uint256 _reward = (t.validVLiquidity * (rewardInfos[i].accRewardPerShare - t.lastTouchAccRewardPerShare[i])) / Q128;
             if (_reward > 0) {
-                IERC20(rewardInfos[i].rewardToken).safeTransferFrom(rewardInfos[i].provider, msg.sender, _reward);
+                IERC20(rewardInfos[i].rewardToken).safeTransferFrom(
+                    rewardInfos[i].provider,
+                    msg.sender,
+                    _reward
+                );
             }
-            emit CollectReward(msg.sender, tokenId, rewardInfos[i].rewardToken, _reward);
+            emit CollectReward(
+                msg.sender,
+                tokenId,
+                rewardInfos[i].rewardToken,
+                _reward
+            );
         }
 
         uint256 nIZI = t.nIZI;
@@ -471,13 +508,13 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
-    function collectReward(uint256 tokenId) nonReentrant external {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
+    function collectReward(uint256 tokenId) external nonReentrant {
+        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
         _collectReward(tokenId);
     }
 
     /// @notice Collect all pending rewards.
-    function collectRewards() nonReentrant external {
+    function collectRewards() external nonReentrant {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
             require(owners[ids.at(i)] == msg.sender, "NOT OWNER");
@@ -524,10 +561,14 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to see pending Reward for a single position.
     /// @param tokenId The related position id.
-    function pendingReward(uint256 tokenId) public view returns (uint256[] memory) {
+    function pendingReward(uint256 tokenId)
+        public
+        view
+        returns (uint256[] memory)
+    {
         TokenStatus memory t = tokenStatus[tokenId];
         uint256[] memory _reward = new uint256[](rewardInfosLen);
-        for (uint256 i = 0; i < rewardInfosLen; i ++) {
+        for (uint256 i = 0; i < rewardInfosLen; i++) {
             uint256 multiplier = _getMultiplier(lastTouchBlock, block.number);
             uint256 tokenReward = multiplier * rewardInfos[i].rewardPerBlock;
             uint256 rewardPerShare = rewardInfos[i].accRewardPerShare + (tokenReward * Q128) / totalVLiquidity;
@@ -539,21 +580,24 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to see pending Rewards for an address.
     /// @param _user The related address.
-    function pendingRewards(address _user) external view returns (uint256[] memory) {
+    function pendingRewards(address _user)
+        external
+        view
+        returns (uint256[] memory)
+    {
         uint256[] memory _reward = new uint256[](rewardInfosLen);
-        for (uint256 j = 0; j < rewardInfosLen; j ++) {
+        for (uint256 j = 0; j < rewardInfosLen; j++) {
             _reward[j] = 0;
         }
-        
+
         for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
             uint256[] memory r = pendingReward(tokenIds[_user].at(i));
-            for (uint256 j = 0; j < rewardInfosLen; j ++) {
+            for (uint256 j = 0; j < rewardInfosLen; j++) {
                 _reward[j] += r[j];
             }
         }
         return _reward;
     }
-
 
     // Control fuctions for the contract owner and operators.
 
@@ -562,14 +606,18 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     function emergenceWithdraw(uint256 tokenId) external onlyOwner {
         address owner = owners[tokenId];
         require(owner != address(0));
-        uniV3NFTManager.safeTransferFrom(address(this), owners[tokenId], tokenId);
+        uniV3NFTManager.safeTransferFrom(
+            address(this),
+            owners[tokenId],
+            tokenId
+        );
         uint256 nIZI = tokenStatus[tokenId].nIZI;
         if (nIZI > 0) {
             // we should ensure nft refund to user
-            // and donot care if izi or lock token refund failed
+            // omit the case when transfer() returns false unexpectedly
             iziToken.transfer(owner, nIZI);
         }
-        // makesure user cannot withdraw/depositIZI or collect reward on this nft
+        // make sure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
     }
 
@@ -587,21 +635,28 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @notice Set new reward per block.
     /// @param rewardIdx which rewardInfo to modify
     /// @param _rewardPerBlock new reward per block
-    function modifyRewardPerBlock(uint rewardIdx, uint _rewardPerBlock) external onlyOwner {
+    function modifyRewardPerBlock(uint256 rewardIdx, uint256 _rewardPerBlock)
+        external
+        onlyOwner
+    {
         require(rewardIdx < rewardInfosLen, "OUT OF REWARD INFO RANGE");
         _updateGlobalStatus();
         rewardInfos[rewardIdx].rewardPerBlock = _rewardPerBlock;
-        emit ModifyRewardPerBlock(rewardInfos[rewardIdx].rewardToken, _rewardPerBlock);
+        emit ModifyRewardPerBlock(
+            rewardInfos[rewardIdx].rewardToken,
+            _rewardPerBlock
+        );
     }
-
 
     /// @notice Set new reward provider.
     /// @param rewardIdx which rewardInfo to modify
     /// @param provider New provider
-    function modifyProvider(uint rewardIdx, address provider) external onlyOwner {
+    function modifyProvider(uint256 rewardIdx, address provider)
+        external
+        onlyOwner
+    {
         require(rewardIdx < rewardInfosLen, "OUT OF REWARD INFO RANGE");
         rewardInfos[rewardIdx].provider = provider;
         emit ModifyProvider(rewardInfos[rewardIdx].rewardToken, provider);
     }
-
 }
