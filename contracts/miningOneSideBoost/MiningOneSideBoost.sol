@@ -112,7 +112,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         address rewardToken;
         /// @dev who provides reward
         address provider;
-        /// @dev Accumulated Reward Tokens per share, times 1e128.
+        /// @dev Accumulated Reward Tokens per share, times Q128.
         uint256 accRewardPerShare;
         /// @dev Reward amount for each block.
         uint256 rewardPerBlock;
@@ -767,6 +767,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
         _updateGlobalStatus();
         for (uint256 i = 0; i < rewardInfosLen; i++) {
+            // multiplied by Q128 before
             uint256 _reward = (t.validVLiquidity * (rewardInfos[i].accRewardPerShare - t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
             if (_reward > 0) {
                 IERC20(rewardInfos[i].rewardToken).safeTransferFrom(

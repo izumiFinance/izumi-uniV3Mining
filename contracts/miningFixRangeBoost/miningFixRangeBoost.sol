@@ -250,7 +250,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
     /// @param liquidity The liquidity of a a position.
     /// @dev vLiquidity = liquidity * validRange^2 / 1e6, where the validRange is the tick amount of the
     /// intersection between the position and the reward range.
-    /// We divided it by 1e6 to keep vLiquidity smaller than 1e128. This is safe since liqudity is usually a large number.
+    /// We divided it by 1e6 to keep vLiquidity smaller than Q128 in most cases. This is safe since liqudity is usually a large number.
     function _getVLiquidityForNFT(
         int24 tickLower,
         int24 tickUpper,
@@ -326,6 +326,8 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         } else {
             totalNIZI = totalNIZI - nIZI;
         }
+
+        // totalNIZI is always < Q96
     }
 
     /// @notice Update the global status.
