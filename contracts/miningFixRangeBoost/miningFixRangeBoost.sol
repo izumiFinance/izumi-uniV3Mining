@@ -2,13 +2,14 @@
 pragma solidity 0.8.4;
 
 // Uncomment if needed.
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import "../multicall.sol";
 
@@ -58,16 +59,10 @@ interface PositionManagerV3 {
     ) external;
 
     function ownerOf(uint256 tokenId) external view returns (address);
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external;
 }
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
+contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard, IERC721Receiver {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -206,7 +201,9 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         totalVLiquidity = 0;
         totalNIZI = 0;
     }
-
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
     /// @notice Get the overall info for the mining contract.
     function getMiningContractInfo()
         external
@@ -395,7 +392,7 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard {
         vLiquidity = _getVLiquidityForNFT(tickLower, tickUpper, liquidity);
         require(vLiquidity > 0, "INVALID TOKEN");
 
-        uniV3NFTManager.transferFrom(msg.sender, address(this), tokenId);
+        uniV3NFTManager.safeTransferFrom(msg.sender, address(this), tokenId);
         owners[tokenId] = msg.sender;
         bool res = tokenIds[msg.sender].add(tokenId);
         require(res);
