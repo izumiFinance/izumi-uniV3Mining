@@ -201,9 +201,17 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard, IERC721Rece
         totalVLiquidity = 0;
         totalNIZI = 0;
     }
-    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+
+    /// @notice Used for ERC721 safeTransferFrom
+    function onERC721Received(address, address, uint256, bytes memory) 
+        public 
+        virtual 
+        override 
+        returns (bytes4) 
+    {
         return this.onERC721Received.selector;
     }
+
     /// @notice Get the overall info for the mining contract.
     function getMiningContractInfo()
         external

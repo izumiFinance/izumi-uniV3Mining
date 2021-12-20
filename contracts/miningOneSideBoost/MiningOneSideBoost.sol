@@ -143,20 +143,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
 
     receive() external payable {}
 
-    function lastTouchAccRewardPerShare(uint256 tokenId)
-        public
-        view
-        returns (uint256[] memory lta)
-    {
-        TokenStatus memory t = tokenStatus[tokenId];
-        uint256 len = t.lastTouchAccRewardPerShare.length;
-        lta = new uint256[](len);
-        for (uint256 i = 0; i < len; i++) {
-            lta[i] = t.lastTouchAccRewardPerShare[i];
-        }
-        return lta;
-    }
-
     /// @dev token to lock, 0 for not boost
     IERC20 public iziToken;
     /// @dev current total nIZI.
@@ -567,6 +553,7 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
                 newTokenStatus.nftId,
                 newTokenStatus.uniLiquidity,
                 actualAmountUni,
+
             ) = INonfungiblePositionManager(uniV3NFTManager).mint{
                 value: msg.value
             }(uniParams);
