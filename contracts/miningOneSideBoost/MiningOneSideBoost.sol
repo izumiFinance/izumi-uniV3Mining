@@ -691,9 +691,6 @@ contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
         if (noReward) {
-            // The collecting procedure is commenced out.
-            // collectReward(tokenId);
-            // The global status needs update since the vLiquidity is changed after withdraw.
             _updateGlobalStatus();
         } else {
             _collectReward(tokenId);
