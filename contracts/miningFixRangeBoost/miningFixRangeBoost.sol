@@ -146,17 +146,9 @@ contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard, IERC721Rece
     // Events
     event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);
     event Withdraw(address indexed user, uint256 tokenId);
-    event CollectReward(
-        address indexed user,
-        uint256 tokenId,
-        address token,
-        uint256 amount
-    );
+    event CollectReward(address indexed user, uint256 tokenId, address token, uint256 amount);
     event ModifyEndBlock(uint256 endBlock);
-    event ModifyRewardPerBlock(
-        address indexed rewardToken,
-        uint256 rewardPerBlock
-    );
+    event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
     event ModifyProvider(address indexed rewardToken, address provider);
 
     constructor(
