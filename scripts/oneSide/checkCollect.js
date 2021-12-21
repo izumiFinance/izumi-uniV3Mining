@@ -2,14 +2,12 @@ const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 const BigNumber = require('bignumber.js');
 var sleep = require('sleep'); 
-
-const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
+const config = require("../../hardhat.config.js");
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node checkCollect.js \
-//     'ONESIDE_USDC_BIT_3000' 953
+//     'ONESIDE_WETH9_IZI_3000' 1693
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -19,8 +17,31 @@ const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
     nftId: v[3],
+    rpc: config.networks[net].url,
 }
 
+const Web3 = require("web3");
+var web3 = new Web3(new Web3.providers.HttpProvider(para.rpc));
+
+const managerJson = require(contracts.nftManagerJson);
+
+async function getUniCollect(nftManager, nftid) {
+
+  console.log(nftid);
+  
+  var owner = await nftManager.methods.ownerOf(nftid).call();
+
+  console.log(owner);
+
+  var ret = await nftManager.methods.collect({
+      tokenId: nftid,
+      recipient: owner,
+      amount0Max: '0xffffffffffffffffffffffffffffffff',
+      amount1Max: '0xffffffffffffffffffffffffffffffff'
+  }).call({from: owner});
+
+  return ret;
+}
 async function attachToken(address) {
   var tokenFactory = await hardhat.ethers.getContractFactory("TestToken");
   var token = tokenFactory.attach(address);
@@ -87,7 +108,15 @@ function bigNumberListToStr(b) {
     c = b.map((a)=>a.toFixed(0));
     return c;
 }
+
 async function main() {
+
+  var nftManager = new web3.eth.Contract(managerJson.abi, contracts[net].nftManager);
+  console.log('nftmanager: ',contracts[net].nftManager );
+  uniCollect = await getUniCollect(nftManager, para.nftId);
+
+  console.log('uniCollect: ', uniCollect);
+  return;
     
   const [deployer, tester] = await hardhat.ethers.getSigners();
   console.log('deployer: ', deployer.address);

@@ -2,16 +2,16 @@ const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 
 const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node mintFixRange.js \
-//     'FIXRANGE_BIT_USDC_3000' \
+//     'FIXRANGE_USDC_USDT_500' \
 //     704 0
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
+const factoryAddress = contracts[net].factory;
 
 
 const para = {

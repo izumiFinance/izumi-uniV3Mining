@@ -1,5 +1,5 @@
 const hardhat = require("hardhat");
-const contracts = require("./deployed.js");
+const contracts = require("../deployed.js");
 
 const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;

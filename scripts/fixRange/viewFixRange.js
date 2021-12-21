@@ -104,14 +104,21 @@ async function main() {
   for (var i = 0; i < await mining.rewardInfosLen(); i ++) {
       const rewardInfo = await mining.rewardInfos(i);
       amountNoDecimal.push(await getNumNoDecimal(rewardInfo.rewardToken, 1));
+      rewardInfo.rewardPerBlock = rewardInfo.rewardPerBlock.toString();
       rewardInfos.push(rewardInfo);
   }
   
   console.log('amountNoDecimal: ', amountNoDecimal);
- 
+  console.log('rewardToken: ', rewardInfos[0].rewardToken);
+  console.log('rewardProvider: ', rewardInfos[0].provider);
+
+  console.log('rewardInfos: ', rewardInfos);
+  let meta = await getMiningContractInfo(mining);
+  console.log('meta: ', meta);
+
   
   while(true) {
-    let meta = await getMiningContractInfo(mining);
+    meta = await getMiningContractInfo(mining);
     for (id of tokenIds) {
 
         const blockNumber = await ethers.provider.getBlockNumber();
@@ -123,7 +130,7 @@ async function main() {
         let ts = await getTokenStatus(mining, id);
         const blockNumber2 = await ethers.provider.getBlockNumber();
         console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
-        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock);
+        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock, ' startBlock: ', meta.startBlock);
     }
     console.log('---------------------------------');
     sleep.sleep(1);

@@ -1,6 +1,5 @@
 const hardhat = require("hardhat");
-const contracts = require("./deployed.js");
-const managerAddress = contracts.nftManger;
+const contracts = require("../../deployed.js");
 
 
 // example
@@ -11,6 +10,7 @@ const managerAddress = contracts.nftManger;
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+const managerAddress = contracts[net].nftManager;
 const para = {
     token0Symbol: v[2],
     token0Address: contracts[net][v[2]],

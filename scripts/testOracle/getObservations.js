@@ -61,8 +61,8 @@ async function main() {
   var ob5 = await getObservation(pool, 5);
   var ob6 = await getObservation(pool, 6);
   var ob7 = await getObservation(pool, 7);
-  var ob8 = await getObservation(pool, 7);
-  var ob9 = await getObservation(pool, 7);
+  var ob8 = await getObservation(pool, 8);
+  var ob9 = await getObservation(pool, 9);
 
   console.log(ob0.tickCumulative, ob0.blockTimestamp);
   console.log(ob1.tickCumulative, ob1.blockTimestamp);

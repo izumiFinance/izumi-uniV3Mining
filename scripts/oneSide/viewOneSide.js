@@ -9,7 +9,7 @@ const factoryAddress = contracts.factory;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node viewOneSide.js \
-//     'ONESIDE_USDC_BIT_3000' 953
+//     'ONESIDE_WETH9_IZI_3000' 1697
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -45,6 +45,7 @@ async function getMeta(mining) {
     totalVLiquidity: totalVLiquidity.toString(),
     totalNIZI: totalNIZI.toString(),
     endBlock: endBlock.toString(),
+    totalLock: totalLock.toString()
   }
 }
 async function getTokenStatus(mining, nftId) {
@@ -77,10 +78,14 @@ async function main() {
       rewardInfos.push(rewardInfo);
   }
 
+  console.log('rewardInfos: ', rewardInfos);
+  let meta = await getMeta(mining);
+  console.log('meta: ', meta);
+
   tokenIds = [para.nftId];
   
   while(true) {
-    let meta = await getMeta(mining);
+    meta = await getMeta(mining);
     for (id of tokenIds) {
 
         const blockNumber = await hardhat.ethers.provider.getBlockNumber();
@@ -93,7 +98,7 @@ async function main() {
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
         console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
-        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock);
+        console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock, ' totalLock: ', meta.totalLock);
     }
     console.log('---------------------------------');
     sleep.sleep(1);

@@ -5,11 +5,12 @@ const BigNumber = require("bignumber.js");
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node deployMiningFixRangeBoostOneReward.js \
-//     'MIM' 'USDC' 500 \
-//     'SPELL' 10 \
-//      0 1000000000000 \
-//      0.95 1.05 \
-//      0
+//     'USDT' 'USDC' 100 \
+//     'iZi' 15 \
+//     0xee264e74A2Fd2c7A55da705b80e092f05DaE5b5D \
+//      13846789 14025760 \
+//      0.999 1.001 \
+//      1
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -24,13 +25,14 @@ var para = {
     rewardTokenSymbol: v[5],
     rewardTokenAddress: contracts[net][v[5]],
     rewardPerBlock: v[6],
+    rewardProvider: v[7],
 
-    startBlock: v[7],
-    endBlock: v[8],
-    priceLower0By1: BigNumber(v[9]),
-    priceUpper0By1: BigNumber(v[10]),
+    startBlock: v[8],
+    endBlock: v[9],
+    priceLower0By1: BigNumber(v[10]),
+    priceUpper0By1: BigNumber(v[11]),
 
-    boost: v[11],
+    boost: v[12],
 }
 
 
@@ -118,13 +120,13 @@ async function main() {
   console.log('iziAddr: ', iziAddr);
 
   const mining = await Mining.deploy(
-    contracts[net].nftManger,
+    contracts[net].nftManager,
     para.token0Address,
     para.token1Address,
     para.fee,
     [{
       rewardToken: para.rewardTokenAddress,
-      provider: deployer.address,
+      provider: para.rewardProvider,
       accRewardPerShare: 0,
       rewardPerBlock: para.rewardPerBlock,
     }],
@@ -134,12 +136,6 @@ async function main() {
     para.startBlock, para.endBlock
   );
   await mining.deployed();
-  await approve(
-    await attachToken(para.rewardTokenAddress), 
-    deployer, 
-    mining.address, 
-    "1000000000000000000000000000000"
-  );
   
   console.log("MiningFixRangeBoost Contract Address: " , mining.address);
 

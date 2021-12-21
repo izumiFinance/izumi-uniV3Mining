@@ -3,12 +3,13 @@ const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
-// HARDHAT_NETWORK='izumiTest' \
-//     node deployMiningOneSideBoostTwoReward.js \
+// HARDHAT_NETWORK='ethereum' \
+//     node deployMiningOneSideBoostOneReward.js \
 //     'WETH9' 'iZi' 3000 \
 //     'iZi' 15 \
+//     0xee264e74A2Fd2c7A55da705b80e092f05DaE5b5D \
 //     1 \
-//     8900 1000000000000 \
+//     13846789 14025760 \
 //     1
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -25,12 +26,14 @@ var para = {
     rewardTokenAddress: contracts[net][v[5]],
     rewardPerBlock: v[6],
 
-    lockBoostMultiplier: v[7],
+    rewardProvider: v[7],
 
-    startBlock: v[8],
-    endBlock: v[9],
+    lockBoostMultiplier: v[8],
 
-    boost: v[10],
+    startBlock: v[9],
+    endBlock: v[10],
+
+    boost: v[11],
 }
 
 
@@ -91,14 +94,14 @@ async function main() {
 
   const mining = await Mining.deploy(
     {
-      uniV3NFTManager: contracts[net].nftManger,
+      uniV3NFTManager: contracts[net].nftManager,
       uniTokenAddr: para.tokenUniAddress,
       lockTokenAddr: para.tokenLockAddress,
       fee: para.fee
     },
     [{
       rewardToken: para.rewardTokenAddress,
-      provider: deployer.address,
+      provider: para.rewardProvider,
       accRewardPerShare: 0,
       rewardPerBlock: para.rewardPerBlock,
     }],
@@ -110,7 +113,7 @@ async function main() {
 
   // console.log(mining.deployTransaction);
   
-  await approve(await attachToken(para.rewardTokenAddress), deployer, mining.address, "1000000000000000000000000000000");
+  // await approve(await attachToken(para.rewardTokenAddress), deployer, mining.address, "1000000000000000000000000000000");
 
   console.log("MiningOneSideBoost Contract Address: " , mining.address);
 

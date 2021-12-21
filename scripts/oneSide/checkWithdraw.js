@@ -2,6 +2,7 @@ const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 const BigNumber = require('bignumber.js');
 var sleep = require('sleep'); 
+const { ethers } = require("hardhat");
 
 const factoryJson = require(contracts.factoryJson);
 const factoryAddress = contracts.factory;
@@ -14,7 +15,7 @@ const factoryAddress = contracts.factory;
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
-
+const weth = contracts[net].WETH9
 const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
@@ -82,9 +83,12 @@ async function getBalance(user, tokens) {
 
         if (BigNumber(tokenAddr).eq('0')) {
           balance.push({_hex:'0x0'});
-        } else {
+        } else if (tokenAddr != weth) {
           var token = await attachToken(tokenAddr);
           var b = await token.balanceOf(user.address);
+          balance.push(b);
+        } else {
+          var b = await ethers.provider.getBalance(user.address);
           balance.push(b);
         }
     }
