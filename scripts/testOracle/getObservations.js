@@ -1,6 +1,9 @@
 const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
+const secret = require('../../.secret.js');
 const BigNumber = require("bignumber.js");
+const {getWeb3} = require('../libraries/getWeb3');
+const {getContractABI} = require('../libraries/getContractJson');
 
 const poolJson = require(contracts.poolJson);
 // example
@@ -8,46 +11,40 @@ const poolJson = require(contracts.poolJson);
 //     node getOracle.js 0x23Fd99b8566312305383e68517Fd6b274F2C16c2
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
+const pk = secret.pk
 
 para = {
     poolAddr: v[2]
 }
 
 async function getObservation(pool, idx) {
-    var blockTimestamp, tickCumulative, secondsPerLiquidityCumulativeX128, initialized;
-    [blockTimestamp, tickCumulative, secondsPerLiquidityCumulativeX128, initialized] = await pool.observations(idx);
-    blockTimestamp = blockTimestamp.toString();
-    tickCumulative = tickCumulative.toString();
-    return {
-        blockTimestamp, tickCumulative, secondsPerLiquidityCumulativeX128, initialized
-    };
+    return pool.methods.observations(idx).call();
 }
 
 async function getSlot0(pool) {
-    var sqrtPriceX96, tick, observationIndex, observationCardinality;
-    [sqrtPriceX96, tick, observationIndex, observationCardinality] = await pool.slot0();
-    return {
-        sqrtPriceX96, tick, observationIndex, observationCardinality
-    };
+    return pool.methods.slot0().call();
 }
 async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  const TestOracle = await hardhat.ethers.getContractFactory("TestOracle");
-  console.log('test oracle: ', contracts[net].testOracle);
-  const testOracle = TestOracle.attach(contracts[net].testOracle);
+  const web3 = getWeb3();
+  const testOracleABI = getContractABI(__dirname + '/../../artifacts/contracts/test/TestOracle.sol/TestOracle.json');
+  console.log('test oracle abi: ', testOracleABI);
+  const testOracle = new web3.eth.Contract(testOracleABI, contracts[net].testOracle);
+
+  console.log('test oracle: ', testOracle);
   
-  var tick, sqrtPriceX96, currTick, currSqrtPriceX96;
-  [tick, sqrtPriceX96, currTick, currSqrtPriceX96] = await testOracle.getAvgTickPriceWithin2Hour(para.poolAddr);
+  // var tick, sqrtPriceX96, currTick, currSqrtPriceX96;
+  // console.log('addr: ', para.poolAddr);
+  // console.log('func: ', await testOracle.methods.getAvgTickPriceWithin2Hour(para.poolAddr).call());
+  const {tick, sqrtPriceX96, currTick, currSqrtPriceX96} = await testOracle.methods.getAvgTickPriceWithin2Hour(para.poolAddr).call();
   console.log('tick: ', tick);
   console.log('curr tick: ', currTick);
   console.log('sqrt price x96: ', sqrtPriceX96.toString());
   console.log('curr sqrt price x96: ', currSqrtPriceX96.toString());
 
-
-  const poolContract = await hardhat.ethers.getContractFactory(poolJson.abi, poolJson.bytecode, deployer);
-  const pool = poolContract.attach(para.poolAddr);
+  const pool = new web3.eth.Contract(poolJson.abi, para.poolAddr);
 
   const s0 = await getSlot0(pool);
   console.log(s0.observationIndex);
