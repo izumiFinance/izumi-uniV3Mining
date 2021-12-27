@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "../libraries/UniswapOracle.sol";
+import "../libraries/UniswapCallingParams.sol";
 
 import "../base/MiningBase.sol";
 
@@ -26,7 +27,7 @@ interface IWETH9 is IERC20 {
 
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningDynamicSideBoost is MiningBase {
+contract MiningDynamicRangeBoost is MiningBase {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -317,14 +318,14 @@ contract MiningDynamicSideBoost is MiningBase {
             // price is lockToken / uniToken
             // uniToken is X
             tickLeft = Math.max(currTick + 1, avgTick);
-            tickRight = Math.min(tickLeft + 6932, TICK_MAX); // log(1.0001, 2) = 6932
+            tickRight = Math.min(tickLeft + 6932, TICK_MAX); // 1.0001^6932 = 2
             tickLeft = Math.tickUpper(tickLeft, tickSpacing);
             tickRight = Math.tickUpper(tickRight, tickSpacing);
         } else {
             // price is uniToken / lockToken
             // uniToken is Y
             tickRight = Math.min(currTick, avgTick);
-            tickLeft = Math.max(tickRight - 6932, TICK_MIN); // log(1.0001, 2) = 6932
+            tickLeft = Math.max(tickRight - 6932, TICK_MIN); // 1.0001^6932 = 2 
             tickLeft = Math.tickFloor(tickLeft, tickSpacing);
             tickRight = Math.tickFloor(tickRight, tickSpacing);
         }
@@ -341,39 +342,6 @@ contract MiningDynamicSideBoost is MiningBase {
         )
     {
         (avgTick, avgSqrtPriceX96, , ) = swapPool.getAvgTickPriceWithin2Hour();
-    }
-
-    // fill INonfungiblePositionManager.MintParams struct to call INonfungiblePositionManager.mint(...)
-    function _mintUniswapParam(
-        uint256 uniAmount,
-        int24 tickLeft,
-        int24 tickRight,
-        uint256 deadline
-    )
-        private
-        view
-        returns (INonfungiblePositionManager.MintParams memory params)
-    {
-        params.fee = rewardPool.fee;
-        params.tickLower = tickLeft;
-        params.tickUpper = tickRight;
-        params.deadline = deadline;
-        params.recipient = address(this);
-        if (uniToken < lockToken) {
-            params.token0 = uniToken;
-            params.token1 = lockToken;
-            params.amount0Desired = uniAmount;
-            params.amount1Desired = 0;
-            params.amount0Min = 1;
-            params.amount1Min = 0;
-        } else {
-            params.token0 = lockToken;
-            params.token1 = uniToken;
-            params.amount0Desired = 0;
-            params.amount1Desired = uniAmount;
-            params.amount0Min = 0;
-            params.amount1Min = 1;
-        }
     }
 
     /// @notice Transfers ETH to the recipient address
@@ -410,11 +378,8 @@ contract MiningDynamicSideBoost is MiningBase {
         TokenStatus memory newTokenStatus;
 
         INonfungiblePositionManager.MintParams
-            memory uniParams = _mintUniswapParam(
-                uniAmount,
-                tickLeft,
-                tickRight,
-                deadline
+            memory uniParams = UniswapCallingParams.mintParams(
+                uniToken, lockToken, rewardPool.fee, uniAmount, 0, tickLeft, tickRight, deadline
             );
         uint256 actualAmountUni;
 
@@ -502,36 +467,6 @@ contract MiningDynamicSideBoost is MiningBase {
         emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.nIZI);
     }
 
-    function _withdrawUniswapParam(
-        uint256 uniPositionID,
-        uint128 liquidity,
-        uint256 deadline
-    )
-        private
-        pure
-        returns (
-            INonfungiblePositionManager.DecreaseLiquidityParams memory params
-        )
-    {
-        params.tokenId = uniPositionID;
-        params.liquidity = liquidity;
-        params.amount0Min = 0;
-        params.amount1Min = 0;
-        params.deadline = deadline;
-    }
-
-    // fill INonfungiblePositionManager.CollectParams struct to call INonfungiblePositionManager.collect(...)
-    function _collectUniswapParam(uint256 uniPositionID, address recipient)
-        private
-        pure
-        returns (INonfungiblePositionManager.CollectParams memory params)
-    {
-        params.tokenId = uniPositionID;
-        params.recipient = recipient;
-        params.amount0Max = 0xffffffffffffffffffffffffffffffff;
-        params.amount1Max = 0xffffffffffffffffffffffffffffffff;
-    }
-
     /// @notice Widthdraw a single position.
     /// @param tokenId The related position id.
     /// @param noReward true if use want to withdraw without reward
@@ -558,22 +493,19 @@ contract MiningDynamicSideBoost is MiningBase {
         }
 
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            _withdrawUniswapParam(tokenId, t.uniLiquidity, type(uint256).max)
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, t.uniLiquidity, type(uint256).max)
         );
 
         if (!uniIsETH) {
             INonfungiblePositionManager(uniV3NFTManager).collect(
-                _collectUniswapParam(tokenId, msg.sender)
+                UniswapCallingParams.collectParams(tokenId, msg.sender)
             );
         } else {
             (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
                 uniV3NFTManager
             ).collect(
-                    _collectUniswapParam(
-                        tokenId,
-                        address(this)
-                    )
-                );
+                UniswapCallingParams.collectParams(tokenId, msg.sender)
+            );
             (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)? (amount0, amount1) : (amount1, amount0);
             if (amountLock > 0) {
                 IERC20(lockToken).safeTransfer(msg.sender, amountLock);
@@ -598,7 +530,7 @@ contract MiningDynamicSideBoost is MiningBase {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         _collectReward(tokenId);
         INonfungiblePositionManager.CollectParams
-            memory params = _collectUniswapParam(tokenId, msg.sender);
+            memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
         // collect swap fee from uniswap
         INonfungiblePositionManager(uniV3NFTManager).collect(params);
     }
@@ -607,10 +539,11 @@ contract MiningDynamicSideBoost is MiningBase {
     function collectAllTokens() external override nonReentrant {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
-            require(owners[ids.at(i)] == msg.sender, "NOT OWNER");
-            _collectReward(ids.at(i));
+            uint256 tokenId = ids.at(i);
+            require(owners[tokenId] == msg.sender, "NOT OWNER");
+            _collectReward(tokenId);
             INonfungiblePositionManager.CollectParams
-                memory params = _collectUniswapParam(ids.at(i), msg.sender);
+                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
             // collect swap fee from uniswap
             INonfungiblePositionManager(uniV3NFTManager).collect(params);
         }
