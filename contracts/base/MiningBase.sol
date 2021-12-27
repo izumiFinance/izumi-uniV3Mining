@@ -19,7 +19,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
-    
+
     /// @dev Last block number that the accRewardRerShare is touched.
     uint256 public lastTouchBlock;
 
@@ -52,8 +52,6 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     /// @dev Current total virtual liquidity.
     uint256 public totalVLiquidity;
-    /// @dev Current total lock token
-    uint256 public totalLock;
 
     // Events
     event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);

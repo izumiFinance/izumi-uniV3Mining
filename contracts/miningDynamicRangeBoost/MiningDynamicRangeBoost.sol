@@ -37,31 +37,25 @@ contract MiningDynamicRangeBoost is MiningBase {
     int24 internal constant TICK_MAX = 500000;
     int24 internal constant TICK_MIN = -500000;
 
-    struct PoolInfo {
-        address token0;
-        address token1;
-        uint24 fee;
-    }
+    address public weth;
+    address public token0;
+    address public token1;
+    uint24 public fee;
 
-    bool public uniIsETH;
+    bool public token0IsETH;
+    bool public token1IsETH;
 
-    address public uniToken;
-    address public lockToken;
+    uint256 public totalToken0;
+    uint256 public totalToken1;
 
     /// @dev Contract of the uniV3 Nonfungible Position Manager.
     address public uniV3NFTManager;
     address public uniFactory;
     address public swapPool;
-    PoolInfo public rewardPool;
-
-    uint256 public lockBoostMultiplier;
 
     /// @dev Record the status for a certain token for the last touched time.
     struct TokenStatus {
         uint256 nftId;
-        // bool isDepositWithNFT;
-        uint128 uniLiquidity;
-        uint256 lockAmount;
         uint256 vLiquidity;
         uint256 validVLiquidity;
         uint256 nIZI;
@@ -83,65 +77,39 @@ contract MiningDynamicRangeBoost is MiningBase {
 
     receive() external payable {}
 
-    function _setRewardPool(
-        address _uniToken,
-        address _lockToken,
-        uint24 fee
-    ) internal {
-        address token0;
-        address token1;
-        if (_uniToken < _lockToken) {
-            token0 = _uniToken;
-            token1 = _lockToken;
-        } else {
-            token0 = _lockToken;
-            token1 = _uniToken;
-        }
-        rewardPool.token0 = token0;
-        rewardPool.token1 = token1;
-        rewardPool.fee = fee;
-    }
-
     struct PoolParams {
         address uniV3NFTManager;
-        address uniTokenAddr;
-        address lockTokenAddr;
+        address token0;
+        address token1;
         uint24 fee;
     }
-
     constructor(
         PoolParams memory poolParams,
         RewardInfo[] memory _rewardInfos,
-        uint256 _lockBoostMultiplier,
         address iziTokenAddr,
         uint256 _startBlock,
         uint256 _endBlock
     ) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
+        token0 = poolParams.token0;
+        token1 = poolParams.token1;
+        fee = poolParams.fee;
 
-        _setRewardPool(
-            poolParams.uniTokenAddr,
-            poolParams.lockTokenAddr,
-            poolParams.fee
-        );
+        require(token0 < token1, "TOKEN0 < TOKEN1 NOT MATCH");
 
-        address weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
-        require(weth != poolParams.lockTokenAddr, "WETH NOT SUPPORT");
+        weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
-        uniToken = poolParams.uniTokenAddr;
+        token0IsETH = (token0 == weth);
+        token1IsETH = (token1 == weth);
 
-        uniIsETH = (uniToken == weth);
-        lockToken = poolParams.lockTokenAddr;
+        IERC20(token0).safeApprove(uniV3NFTManager, type(uint256).max);
+        IERC20(token1).safeApprove(uniV3NFTManager, type(uint256).max);
 
-        IERC20(uniToken).safeApprove(uniV3NFTManager, type(uint256).max);
-
-        swapPool = IUniswapV3Factory(uniFactory).getPool(
-            lockToken,
-            uniToken,
-            poolParams.fee
-        );
+        swapPool = IUniswapV3Factory(uniFactory).getPool(token0, token1, fee);
         require(swapPool != address(0), "NO UNI POOL");
+
+        require(UniswapOracle.getSlot0(swapPool).observationCardinalityNext >= 100, "CAR");
 
         rewardInfosLen = _rewardInfos.length;
         require(rewardInfosLen > 0, "NO REWARD");
@@ -151,11 +119,6 @@ contract MiningDynamicRangeBoost is MiningBase {
             rewardInfos[i] = _rewardInfos[i];
             rewardInfos[i].accRewardPerShare = 0;
         }
-
-        require(_lockBoostMultiplier > 0, "M>0");
-        require(_lockBoostMultiplier < 4, "M<4");
-
-        lockBoostMultiplier = _lockBoostMultiplier;
 
         // iziTokenAddr == 0 means not boost
         iziToken = IERC20(iziTokenAddr);
@@ -174,81 +137,32 @@ contract MiningDynamicRangeBoost is MiningBase {
         external
         view
         returns (
-            address uniToken_,
-            address lockToken_,
+            address token0_,
+            address token1_,
             uint24 fee_,
-            uint256 lockBoostMultiplier_,
             address iziTokenAddr_,
             uint256 lastTouchBlock_,
             uint256 totalVLiquidity_,
-            uint256 totalLock_,
+            uint256 totalToken0_,
+            uint256 totalToken1_,
             uint256 totalNIZI_,
             uint256 startBlock_,
             uint256 endBlock_
         )
     {
         return (
-            uniToken,
-            lockToken,
-            rewardPool.fee,
-            lockBoostMultiplier,
+            token0,
+            token1,
+            fee,
             address(iziToken),
             lastTouchBlock,
             totalVLiquidity,
-            totalLock,
+            totalToken0,
+            totalToken1,
             totalNIZI,
             startBlock,
             endBlock
         );
-    }
-
-    /// @dev compute amount of lockToken
-    /// @param sqrtPriceX96 sqrtprice value viewed from uniswap pool
-    /// @param uniAmount amount of uniToken user deposits
-    ///    or amount computed corresponding to deposited uniswap NFT
-    /// @return lockAmount amount of lockToken
-    function _getLockAmount(uint160 sqrtPriceX96, uint256 uniAmount)
-        private
-        view
-        returns (uint256 lockAmount)
-    {
-        // uniAmount is less than Q96, checked before
-        uint256 precision = FixedPoints.Q96;
-        uint256 sqrtPriceXP = sqrtPriceX96;
-
-        // if price > 1, we discard the useless precision
-        if (sqrtPriceX96 > FixedPoints.Q96) {
-            precision = FixedPoints.Q32;
-            // sqrtPriceXP <= Q96 after >> operation
-            sqrtPriceXP = (sqrtPriceXP >> 64);
-        }
-        // priceXP <= Q160 if price >= 1
-        // priceXP <= Q96  if price < 1
-        uint256 priceXP = (sqrtPriceXP * sqrtPriceXP) / precision;
-    
-        if (priceXP > 0) {
-            if (uniToken < lockToken) {
-                // price is lockToken / uniToken
-                lockAmount = (uniAmount * priceXP) / precision;
-            } else {
-                lockAmount = (uniAmount * precision) / priceXP;
-            }
-        } else {
-             // in this case sqrtPriceXP <= Q48, precision = Q96
-            if (uniToken < lockToken) {
-                // price is lockToken / uniToken
-                // lockAmount = uniAmount * sqrtPriceXP * sqrtPriceXP / precision / precision;
-                // the above expression will always get 0
-                lockAmount = 0;
-            } else {
-                lockAmount = uniAmount * precision / sqrtPriceXP / sqrtPriceXP; 
-                // lockAmount is always < Q128, since sqrtPriceXP > Q32
-                // we still add the require statement to double check
-                require(lockAmount < FixedPoints.Q160, "TOO MUCH LOCK");
-                lockAmount *= precision;
-            }
-        }
-        require(lockAmount > 0, "LOCK 0");
     }
 
     /// @notice new a token status when touched.
@@ -293,44 +207,25 @@ contract MiningDynamicRangeBoost is MiningBase {
         return Math.min(iziVLiquidity, vLiquidity);
     }
 
-    /// @dev get sqrtPrice of pool(uniToken/tokenSwap/fee)
-    ///    and compute tick range converted from [TICK_MIN, PriceUni] or [PriceUni, TICK_MAX]
-    /// @return sqrtPriceX96 current sqrtprice value viewed from uniswap pool, is a 96-bit fixed point number
-    ///    note this value might mean price of lockToken/uniToken (if uniToken < lockToken)
-    ///    or price of uniToken / lockToken (if uniToken > lockToken)
+    /// @dev compute tick range converted from [oraclePrice / 2, oraclePrice * 2]
     /// @return tickLeft
     /// @return tickRight
-    function _getPriceAndTickRange()
+    function _getTickRange()
         private
         view
         returns (
-            uint160 sqrtPriceX96,
             int24 tickLeft,
             int24 tickRight
         )
     {
-        (int24 avgTick, uint160 avgSqrtPriceX96, int24 currTick, ) = swapPool
-            .getAvgTickPriceWithin2Hour();
-        int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
-            rewardPool.fee
-        );
-        if (uniToken < lockToken) {
-            // price is lockToken / uniToken
-            // uniToken is X
-            tickLeft = Math.max(currTick + 1, avgTick);
-            tickRight = Math.min(tickLeft + 6932, TICK_MAX); // 1.0001^6932 = 2
-            tickLeft = Math.tickUpper(tickLeft, tickSpacing);
-            tickRight = Math.tickUpper(tickRight, tickSpacing);
-        } else {
-            // price is uniToken / lockToken
-            // uniToken is Y
-            tickRight = Math.min(currTick, avgTick);
-            tickLeft = Math.max(tickRight - 6932, TICK_MIN); // 1.0001^6932 = 2 
-            tickLeft = Math.tickFloor(tickLeft, tickSpacing);
-            tickRight = Math.tickFloor(tickRight, tickSpacing);
-        }
+        (int24 avgTick, , , ) = swapPool.getAvgTickPriceWithin2Hour();
+        int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(fee);
+        // 1.0001^6932 = 2
+        tickLeft = Math.max(avgTick - 6932, TICK_MIN);
+        tickRight = Math.min(avgTick + 6932, TICK_MAX);
+        tickLeft = Math.tickFloor(tickLeft, tickSpacing);
+        tickRight = Math.tickUpper(tickRight, tickSpacing);
         require(tickLeft < tickRight, "L<R");
-        sqrtPriceX96 = avgSqrtPriceX96;
     }
 
     function getOraclePrice()
@@ -353,94 +248,78 @@ contract MiningDynamicRangeBoost is MiningBase {
         require(success, "STE");
     }
 
-    function depositWithuniToken(
-        uint256 uniAmount,
-        uint256 numIZI,
-        uint256 deadline
-    ) external payable nonReentrant {
-        require(uniAmount >= 1e7, "TOKENUNI AMOUNT TOO SMALL");
-        require(uniAmount < FixedPoints.Q96 / 3, "TOKENUNI AMOUNT TOO LARGE");
-        if (uniIsETH) {
-            require(msg.value >= uniAmount, "ETHER INSUFFICIENT");
+    function _recvTokenFromUser(address token, address user, uint256 amount) private {
+        if (amount == 0) {
+            return;
+        }
+        if (token == weth) {
+            // the other token must not be weth
+            require(msg.value >= amount, "ETHER INSUFFICIENT");
         } else {
-            IERC20(uniToken).safeTransferFrom(
-                msg.sender,
+            IERC20(token).safeTransferFrom(
+                user,
                 address(this),
-                uniAmount
+                amount
             );
         }
-        (
-            uint160 sqrtPriceX96,
-            int24 tickLeft,
-            int24 tickRight
-        ) = _getPriceAndTickRange();
+    }
+
+    function _refundTokenToUser(address token, address user, uint256 amount) private {
+        if (amount == 0) {
+            return;
+        }
+        if (token == weth) {
+            // the other token must not be weth
+            safeTransferETH(user, amount);
+        } else {
+            IERC20(token).safeTransfer(
+                user,
+                amount
+            );
+        }
+    }
+
+    function depositWithuniToken(
+        uint256 amount0Desired,
+        uint256 amount1Desired,
+        uint256 numIZI
+    ) external payable nonReentrant {
+        _recvTokenFromUser(token0, msg.sender, amount0Desired);
+        _recvTokenFromUser(token1, msg.sender, amount1Desired);
+        (int24 tickLeft, int24 tickRight) = _getTickRange();
 
         TokenStatus memory newTokenStatus;
 
         INonfungiblePositionManager.MintParams
             memory uniParams = UniswapCallingParams.mintParams(
-                uniToken, lockToken, rewardPool.fee, uniAmount, 0, tickLeft, tickRight, deadline
+                token0, token1, fee, amount0Desired, amount1Desired, tickLeft, tickRight, type(uint256).max
             );
-        uint256 actualAmountUni;
-
-        if (uniToken < lockToken) {
-            (
-                newTokenStatus.nftId,
-                newTokenStatus.uniLiquidity,
-                actualAmountUni,
-
-            ) = INonfungiblePositionManager(uniV3NFTManager).mint{
-                value: msg.value
-            }(uniParams);
-        } else {
-            (
-                newTokenStatus.nftId,
-                newTokenStatus.uniLiquidity,
-                ,
-                actualAmountUni
-            ) = INonfungiblePositionManager(uniV3NFTManager).mint{
-                value: msg.value
-            }(uniParams);
-        }
+        uint256 actualAmount0; 
+        uint256 actualAmount1;
+        (
+            newTokenStatus.nftId,
+            newTokenStatus.vLiquidity,
+            actualAmount0,
+            actualAmount1
+        ) = INonfungiblePositionManager(uniV3NFTManager).mint{
+            value: msg.value
+        }(uniParams);
 
         // mark owners and append to list
         owners[newTokenStatus.nftId] = msg.sender;
         bool res = tokenIds[msg.sender].add(newTokenStatus.nftId);
         require(res);
 
-        if (actualAmountUni < uniAmount) {
-            if (uniIsETH) {
-                // refund uniToken
-                // from uniswap to this
-                INonfungiblePositionManager(uniV3NFTManager).refundETH();
-                // from this to msg.sender
-                if (address(this).balance > 0)
-                    safeTransferETH(msg.sender, address(this).balance);
-            } else {
-                // refund uniToken
-                IERC20(uniToken).safeTransfer(
-                    msg.sender,
-                    uniAmount - actualAmountUni
-                );
-            }
+        INonfungiblePositionManager(uniV3NFTManager).refundETH();
+        if (actualAmount0 < amount0Desired) {
+            _refundTokenToUser(token0, msg.sender, amount0Desired - actualAmount0);
+        }
+        if (actualAmount1 < amount1Desired) {
+            _refundTokenToUser(token1, msg.sender, amount1Desired - actualAmount1);
         }
 
         _updateGlobalStatus();
-        newTokenStatus.vLiquidity = actualAmountUni * lockBoostMultiplier;
-        newTokenStatus.lockAmount = _getLockAmount(
-            sqrtPriceX96,
-            newTokenStatus.vLiquidity
-        );
 
-        // make vLiquidity lower
-        newTokenStatus.vLiquidity = newTokenStatus.vLiquidity / 1e6;
-
-        IERC20(lockToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            newTokenStatus.lockAmount
-        );
-        totalLock += newTokenStatus.lockAmount;
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
         newTokenStatus.nIZI = numIZI;
@@ -457,11 +336,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         _newTokenStatus(newTokenStatus);
         if (newTokenStatus.nIZI > 0) {
             // lock izi in this contract
-            iziToken.safeTransferFrom(
-                msg.sender,
-                address(this),
-                newTokenStatus.nIZI
-            );
+            _recvTokenFromUser(address(iziToken), msg.sender, newTokenStatus.nIZI);
         }
 
         emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.nIZI);
@@ -486,17 +361,11 @@ contract MiningDynamicRangeBoost is MiningBase {
             // refund iZi to user
             iziToken.safeTransfer(msg.sender, t.nIZI);
         }
-        if (t.lockAmount > 0) {
-            // refund lockToken to user
-            IERC20(lockToken).safeTransfer(msg.sender, t.lockAmount);
-            totalLock -= t.lockAmount;
-        }
-
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            UniswapCallingParams.decreaseLiquidityParams(tokenId, t.uniLiquidity, type(uint256).max)
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
         );
 
-        if (!uniIsETH) {
+        if (!token0IsETH && !token1IsETH) {
             INonfungiblePositionManager(uniV3NFTManager).collect(
                 UniswapCallingParams.collectParams(tokenId, msg.sender)
             );
@@ -506,15 +375,11 @@ contract MiningDynamicRangeBoost is MiningBase {
             ).collect(
                 UniswapCallingParams.collectParams(tokenId, msg.sender)
             );
-            (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)? (amount0, amount1) : (amount1, amount0);
-            if (amountLock > 0) {
-                IERC20(lockToken).safeTransfer(msg.sender, amountLock);
-            }
+            uint256 amountETH = token0IsETH ? amount0: amount1;
+            IWETH9(weth).withdraw(amountETH);
+            _refundTokenToUser(token0, msg.sender, amount0);
+            _refundTokenToUser(token1, msg.sender, amount1);
 
-            if (amountUni > 0) {
-                IWETH9(uniToken).withdraw(amountUni);
-                safeTransferETH(msg.sender, amountUni);
-            }
         }
 
         owners[tokenId] = address(0);
@@ -567,11 +432,6 @@ contract MiningDynamicRangeBoost is MiningBase {
             // we should ensure nft refund to user
             // omit the case when transfer() returns false unexpectedly
             iziToken.transfer(owner, t.nIZI);
-        }
-        if (t.lockAmount > 0) {
-            // we should ensure nft refund to user
-            // omit the case when transfer() returns false unexpectedly
-            IERC20(lockToken).transfer(owner, t.lockAmount);
         }
         // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);

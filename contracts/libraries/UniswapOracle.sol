@@ -62,6 +62,7 @@ library UniswapOracle {
         uint160 sqrtPriceX96;
         uint16 observationIndex;
         uint16 observationCardinality;
+        uint16 observationCardinalityNext;
     }
 
     /// @dev view slot0 infomations from uniswap pool
@@ -76,7 +77,7 @@ library UniswapOracle {
             int24 tick,
             uint16 observationIndex,
             uint16 observationCardinality,
-            ,
+            uint16 observationCardinalityNext,
             ,
         
         ) = IUniswapV3Pool(pool).slot0();
@@ -84,6 +85,7 @@ library UniswapOracle {
         slot0.sqrtPriceX96 = sqrtPriceX96;
         slot0.observationIndex = observationIndex;
         slot0.observationCardinality = observationCardinality;
+        slot0.observationCardinalityNext = observationCardinalityNext;
     }
 
     // note if we call this interface, we must ensure that the 
