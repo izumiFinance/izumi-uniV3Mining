@@ -60,6 +60,8 @@ contract MiningDynamicRangeBoost is MiningBase {
         uint256 validVLiquidity;
         uint256 nIZI;
         uint256 lastTouchBlock;
+        uint256 amount0;
+        uint256 amount1;
         uint256[] lastTouchAccRewardPerShare;
     }
 
@@ -130,6 +132,9 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         totalVLiquidity = 0;
         totalNIZI = 0;
+
+        totalToken0 = 0;
+        totalToken1 = 0;
     }
 
     /// @notice Get the overall info for the mining contract.
@@ -304,6 +309,10 @@ contract MiningDynamicRangeBoost is MiningBase {
         ) = INonfungiblePositionManager(uniV3NFTManager).mint{
             value: msg.value
         }(uniParams);
+        totalToken0 += actualAmount0;
+        totalToken1 += actualAmount1;
+        newTokenStatus.amount0 = actualAmount0;
+        newTokenStatus.amount1 = actualAmount1;
 
         // mark owners and append to list
         owners[newTokenStatus.nftId] = msg.sender;
@@ -354,6 +363,8 @@ contract MiningDynamicRangeBoost is MiningBase {
             _collectReward(tokenId);
         }
         TokenStatus storage t = tokenStatus[tokenId];
+        totalToken0 -= t.amount0;
+        totalToken1 -= t.amount1;
 
         _updateVLiquidity(t.vLiquidity, false);
         if (t.nIZI > 0) {
