@@ -55,6 +55,8 @@ contract MiningOneSideBoost is MiningBase {
     PoolInfo public rewardPool;
 
     uint256 public lockBoostMultiplier;
+    /// @dev Current total lock token
+    uint256 public totalLock;
 
     /// @dev Record the status for a certain token for the last touched time.
     struct TokenStatus {
