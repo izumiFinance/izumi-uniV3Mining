@@ -339,13 +339,13 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
 
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
-    function collect(uint256 tokenId) external override nonReentrant {
+    function collectReward(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
         _collectReward(tokenId);
     }
 
     /// @notice Collect all pending rewards.
-    function collectAllTokens() external override nonReentrant {
+    function collectRewards() external nonReentrant {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
             require(owners[ids.at(i)] == msg.sender, "NOT OWNER");

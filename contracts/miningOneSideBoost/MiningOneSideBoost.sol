@@ -528,7 +528,7 @@ contract MiningOneSideBoost is MiningBase {
 
     /// @notice Collect pending reward for a single position.
     /// @param tokenId The related position id.
-    function collect(uint256 tokenId) external override nonReentrant {
+    function collect(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         _collectReward(tokenId);
         INonfungiblePositionManager.CollectParams
@@ -538,7 +538,7 @@ contract MiningOneSideBoost is MiningBase {
     }
 
     /// @notice Collect all pending rewards.
-    function collectAllTokens() external override nonReentrant {
+    function collectAllTokens() external nonReentrant {
         EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
         for (uint256 i = 0; i < ids.length(); i++) {
             uint256 tokenId = ids.at(i);

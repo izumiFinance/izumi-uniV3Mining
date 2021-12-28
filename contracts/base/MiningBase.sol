@@ -177,13 +177,6 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         _updateTokenStatus(tokenId, validVLiquidity, t.nIZI);
     }
 
-    /// @notice Collect pending reward for a single position.
-    /// @param tokenId The related position id.
-    function collect(uint256 tokenId) external virtual;
-
-    /// @notice Collect all pending rewards.
-    function collectAllTokens() external virtual;
-
     /// @notice View function to get position ids staked here for an user.
     /// @param _user The related address.
     function getTokenIds(address _user)
