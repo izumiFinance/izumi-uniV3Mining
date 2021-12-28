@@ -76,7 +76,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @param rewardPerBlock new reward per block of 'rewardToken'
     event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
     /// @dev emit if contract owner successfully calls modifyProvider(...)
-    /// @param rewardIdx which rewardInfo to modify
+    /// @param rewardToken address of reward erc20-token
     /// @param provider New provider
     event ModifyProvider(address indexed rewardToken, address provider);
 
