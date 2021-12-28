@@ -391,8 +391,8 @@ Set new reward provider.
 ## Events
 
 ### Deposit
-No description
-> emit if user successfully deposit
+emit if user successfully deposit
+
 
   
 
@@ -403,8 +403,8 @@ No description
 |`tokenId` | uint256 |  | id of mining (same as uniswap nft token id)
 |`nIZI` | uint256 |  | amount of boosted iZi
 ### Withdraw
-No description
-> emit if user successfully withdraw
+emit if user successfully withdraw
+
 
   
 
@@ -414,8 +414,8 @@ No description
 |`user` | address | :white_check_mark: | user
 |`tokenId` | uint256 |  | id of mining (same as uniswap nft token id)
 ### CollectReward
-No description
-> emit if user successfully collect reward
+emit if user successfully collect reward
+
 
   
 
@@ -427,8 +427,8 @@ No description
 |`token` | address |  | address of reward erc-20 token
 |`amount` | uint256 |  | amount of erc-20 token user received
 ### ModifyEndBlock
-No description
-> emit if contract owner successfully calls modifyEndBlock(...)
+emit if contract owner successfully calls modifyEndBlock(...)
+
 
   
 
@@ -437,8 +437,8 @@ No description
 | --- | --- | :---: | --- |
 |`endBlock` | uint256 |  | endBlock
 ### ModifyRewardPerBlock
-No description
-> emit if contract owner successfully calls modifyRewardPerBlock(...)
+emit if contract owner successfully calls modifyRewardPerBlock(...)
+
 
   
 
@@ -448,8 +448,8 @@ No description
 |`rewardToken` | address | :white_check_mark: | address of reward erc20-token
 |`rewardPerBlock` | uint256 |  | new reward per block of 'rewardToken'
 ### ModifyProvider
-No description
-> emit if contract owner successfully calls modifyProvider(...)
+emit if contract owner successfully calls modifyProvider(...)
+
 
   
 
