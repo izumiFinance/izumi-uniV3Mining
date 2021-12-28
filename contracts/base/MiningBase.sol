@@ -50,32 +50,32 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @dev current total nIZI.
     uint256 public totalNIZI;
 
-    /// @dev Current total virtual liquidity.
+    /// @notice Current total virtual liquidity.
     uint256 public totalVLiquidity;
 
-    /// @dev emit if user successfully deposit
+    /// @notice emit if user successfully deposit
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
     /// @param nIZI amount of boosted iZi
     event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);
-    /// @dev emit if user successfully withdraw
+    /// @notice emit if user successfully withdraw
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
     event Withdraw(address indexed user, uint256 tokenId);
-    /// @dev emit if user successfully collect reward
+    /// @notice emit if user successfully collect reward
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
     /// @param token address of reward erc-20 token
     /// @param amount amount of erc-20 token user received 
     event CollectReward(address indexed user, uint256 tokenId, address token, uint256 amount);
-    /// @dev emit if contract owner successfully calls modifyEndBlock(...)
+    /// @notice emit if contract owner successfully calls modifyEndBlock(...)
     /// @param endBlock endBlock 
     event ModifyEndBlock(uint256 endBlock);
-    /// @dev emit if contract owner successfully calls modifyRewardPerBlock(...)
+    /// @notice emit if contract owner successfully calls modifyRewardPerBlock(...)
     /// @param rewardToken address of reward erc20-token
     /// @param rewardPerBlock new reward per block of 'rewardToken'
     event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
-    /// @dev emit if contract owner successfully calls modifyProvider(...)
+    /// @notice emit if contract owner successfully calls modifyProvider(...)
     /// @param rewardToken address of reward erc20-token
     /// @param provider New provider
     event ModifyProvider(address indexed rewardToken, address provider);
