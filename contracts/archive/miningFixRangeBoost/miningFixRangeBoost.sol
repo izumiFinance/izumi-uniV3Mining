@@ -62,7 +62,7 @@ interface PositionManagerV3 {
 }
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard, IERC721Receiver {
+contract OldMiningFixRangeBoost is Ownable, Multicall, ReentrancyGuard, IERC721Receiver {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;

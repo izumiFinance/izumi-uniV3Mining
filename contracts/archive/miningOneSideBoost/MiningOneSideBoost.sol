@@ -71,7 +71,7 @@ library Math {
 }
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
+contract OldMiningOneSideBoost is Ownable, Multicall, ReentrancyGuard {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
