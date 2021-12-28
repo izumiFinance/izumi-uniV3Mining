@@ -16,6 +16,11 @@ Contracts to mine uniswap V3 NFT token
 
 ### Model2: mining with no-impermanent loss.
 
+# Generate Docs:
+```
+$ npx solidity-docgen --solc-module solc-0.8.4 -i contracts -o docs -t template
+```
+
 # Scripts:
 Each script runs some specific tasks. Run a script with the following command line. 
 
