@@ -61,8 +61,9 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     event ModifyRewardPerBlock(address indexed rewardToken, uint256 rewardPerBlock);
     event ModifyProvider(address indexed rewardToken, address provider);
 
-
     /// @notice Update reward variables to be up-to-date.
+    /// @param vLiquidity vLiquidity to add or minus
+    /// @param isAdd add or minus
     function _updateVLiquidity(uint256 vLiquidity, bool isAdd) internal {
         if (isAdd) {
             totalVLiquidity = totalVLiquidity + vLiquidity;
@@ -74,6 +75,9 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         require(totalVLiquidity <= FixedPoints.Q128 * 3, "TOO MUCH LIQUIDITY STAKED");
     }
 
+    /// @notice Update reward variables to be up-to-date.
+    /// @param nIZI amount of boosted iZi to add or minus
+    /// @param isAdd add or minus
     function _updateNIZI(uint256 nIZI, bool isAdd) internal {
         if (isAdd) {
             totalNIZI = totalNIZI + nIZI;
@@ -81,6 +85,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
             totalNIZI = totalNIZI - nIZI;
         }
     }
+
     /// @notice Update the global status.
     function _updateGlobalStatus() internal {
         if (block.number <= lastTouchBlock) {
@@ -104,12 +109,18 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         lastTouchBlock = currBlockNumber;
     }
 
+    /// @notice compute validVLiquidity
+    /// @param vLiquidity origin vLiquidity
+    /// @param nIZI amount of boosted iZi
     function _computeValidVLiquidity(uint256 vLiquidity, uint256 nIZI)
         internal virtual
         view
         returns (uint256);
 
     /// @notice update a token status when touched
+    /// @param tokenId id of TokenStatus obj in sub-contracts (same with uniswap nft id)
+    /// @param validVLiquidity validVLiquidity, can be acquired by _computeValidVLiquidity(...)
+    /// @param nIZI latest amount of iZi boost
     function _updateTokenStatus(
         uint256 tokenId,
         uint256 validVLiquidity,
@@ -124,6 +135,9 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         uint256[] lastTouchAccRewardPerShare;
     }
 
+    /// @notice get base infomation from token status in sub-contracts
+    /// @param tokenId id of TokenStatus obj in sub-contracts
+    /// @return t contains base infomation (uint256 vLiquidity, uint256 validVLiquidity, uint256 nIZI, uint256[] lastTouchAccRewardPerShare)
     function getBaseTokenStatus(uint256 tokenId) internal virtual view returns(BaseTokenStatus memory t);
 
     /// @notice deposit iZi to an nft token
@@ -148,7 +162,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         iziToken.safeTransferFrom(msg.sender, address(this), deltaNIZI);
     }
 
-    /// @notice Collect pending reward for a single position.
+    /// @notice Collect pending reward for a single position. can be called by sub-contracts
     /// @param tokenId The related position id.
     function _collectReward(uint256 tokenId) internal {
         BaseTokenStatus memory t = getBaseTokenStatus(tokenId);
@@ -179,6 +193,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to get position ids staked here for an user.
     /// @param _user The related address.
+    /// @return list of tokenId
     function getTokenIds(address _user)
         external
         view
@@ -216,6 +231,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to see pending Reward for a single position.
     /// @param tokenId The related position id.
+    /// @return list of pending reward amount for each reward ERC20-token of tokenId
     function pendingReward(uint256 tokenId)
         public
         view
@@ -237,6 +253,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     /// @notice View function to see pending Rewards for an address.
     /// @param _user The related address.
+    /// @return list of pending reward amount for each reward ERC20-token of this user
     function pendingRewards(address _user)
         external
         view
