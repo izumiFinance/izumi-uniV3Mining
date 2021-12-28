@@ -33,31 +33,45 @@
 Update reward variables to be up-to-date.
 
 
+
 #### Declaration
 ```solidity
   function _updateVLiquidity(
+    uint256 vLiquidity,
+    bool isAdd
   ) internal
 ```
 
 #### Modifiers:
 No modifiers
 
-
+#### Args:
+| Arg | Type | Description |
+| --- | --- | --- |
+|`vLiquidity` | uint256 | vLiquidity to add or minus
+|`isAdd` | bool | add or minus
 
 ### _updateNIZI
-No description
+Update reward variables to be up-to-date.
+
 
 
 #### Declaration
 ```solidity
   function _updateNIZI(
+    uint256 nIZI,
+    bool isAdd
   ) internal
 ```
 
 #### Modifiers:
 No modifiers
 
-
+#### Args:
+| Arg | Type | Description |
+| --- | --- | --- |
+|`nIZI` | uint256 | amount of boosted iZi to add or minus
+|`isAdd` | bool | add or minus
 
 ### _updateGlobalStatus
 Update the global status.
@@ -75,50 +89,75 @@ No modifiers
 
 
 ### _computeValidVLiquidity
-No description
+compute validVLiquidity
+
 
 
 #### Declaration
 ```solidity
   function _computeValidVLiquidity(
+    uint256 vLiquidity,
+    uint256 nIZI
   ) internal returns (uint256)
 ```
 
 #### Modifiers:
 No modifiers
 
-
+#### Args:
+| Arg | Type | Description |
+| --- | --- | --- |
+|`vLiquidity` | uint256 | origin vLiquidity
+|`nIZI` | uint256 | amount of boosted iZi
 
 ### _updateTokenStatus
 update a token status when touched
 
 
+
 #### Declaration
 ```solidity
   function _updateTokenStatus(
+    uint256 tokenId,
+    uint256 validVLiquidity,
+    uint256 nIZI
   ) internal
 ```
 
 #### Modifiers:
 No modifiers
 
-
+#### Args:
+| Arg | Type | Description |
+| --- | --- | --- |
+|`tokenId` | uint256 | id of TokenStatus obj in sub-contracts (same with uniswap nft id)
+|`validVLiquidity` | uint256 | validVLiquidity, can be acquired by _computeValidVLiquidity(...)
+|`nIZI` | uint256 | latest amount of iZi boost
 
 ### getBaseTokenStatus
-No description
+get base infomation from token status in sub-contracts
+
 
 
 #### Declaration
 ```solidity
   function getBaseTokenStatus(
+    uint256 tokenId
   ) internal returns (struct MiningBase.BaseTokenStatus t)
 ```
 
 #### Modifiers:
 No modifiers
 
+#### Args:
+| Arg | Type | Description |
+| --- | --- | --- |
+|`tokenId` | uint256 | id of TokenStatus obj in sub-contracts
 
-
+#### Returns:
+| Type | Description |
+| --- | --- |
+|`t` | contains base infomation (uint256 vLiquidity, uint256 validVLiquidity, uint256 nIZI, uint256[] lastTouchAccRewardPerShare)
 ### depositIZI
 deposit iZi to an nft token
 
@@ -144,7 +183,7 @@ deposit iZi to an nft token
 |`deltaNIZI` | uint256 | amount of izi to deposit
 
 ### _collectReward
-Collect pending reward for a single position.
+Collect pending reward for a single position. can be called by sub-contracts
 
 
 
@@ -183,6 +222,10 @@ No modifiers
 | --- | --- | --- |
 |`_user` | address | The related address.
 
+#### Returns:
+| Type | Description |
+| --- | --- |
+|`list` | of tokenId
 ### _getRewardBlockNum
 Return reward multiplier over the given _from to _to block.
 
@@ -225,6 +268,10 @@ No modifiers
 | --- | --- | --- |
 |`tokenId` | uint256 | The related position id.
 
+#### Returns:
+| Type | Description |
+| --- | --- |
+|`list` | of pending reward amount for each reward ERC20-token of tokenId
 ### pendingRewards
 View function to see pending Rewards for an address.
 
@@ -245,6 +292,10 @@ No modifiers
 | --- | --- | --- |
 |`_user` | address | The related address.
 
+#### Returns:
+| Type | Description |
+| --- | --- |
+|`list` | of pending reward amount for each reward ERC20-token of this user
 ### emergenceWithdraw
 If something goes wrong, we can send back user's nft and locked assets
 
