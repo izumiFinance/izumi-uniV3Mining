@@ -111,12 +111,12 @@ function bigNumberListToStr(b) {
 
 async function main() {
 
-  var nftManager = new web3.eth.Contract(managerJson.abi, contracts[net].nftManager);
-  console.log('nftmanager: ',contracts[net].nftManager );
-  uniCollect = await getUniCollect(nftManager, para.nftId);
+  // var nftManager = new web3.eth.Contract(managerJson.abi, contracts[net].nftManager);
+  // console.log('nftmanager: ',contracts[net].nftManager );
+  // uniCollect = await getUniCollect(nftManager, para.nftId);
 
-  console.log('uniCollect: ', uniCollect);
-  return;
+  // console.log('uniCollect: ', uniCollect);
+  // return;
     
   const [deployer, tester] = await hardhat.ethers.getSigners();
   console.log('deployer: ', deployer.address);

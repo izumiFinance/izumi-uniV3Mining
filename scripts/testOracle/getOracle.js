@@ -2,6 +2,8 @@ const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
+const {getWeb3} = require('../libraries/getWeb3');
+const {getContractABI} = require('../libraries/getContractJson');
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node getOracle.js 0x23Fd99b8566312305383e68517Fd6b274F2C16c2
@@ -17,11 +19,12 @@ async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  const TestOracle = await hardhat.ethers.getContractFactory("TestOracle");
-  const testOracle = TestOracle.attach(contracts[net].testOracle);
+  const web3 = getWeb3();
+  const testOracleABI = getContractABI(__dirname + '/../../artifacts/contracts/test/TestOracle.sol/TestOracle.json');
   
-  var tick, sqrtPriceX96, currTick, currSqrtPriceX96;
-  [tick, sqrtPriceX96, currTick, currSqrtPriceX96] = await testOracle.getAvgTickPriceWithin2Hour(para.poolAddr);
+  const testOracle = new web3.eth.Contract(testOracleABI, contracts[net].testOracle);
+  
+  const {tick, sqrtPriceX96, currTick, currSqrtPriceX96} = await testOracle.methods.getAvgTickPriceWithin2Hour(para.poolAddr).call();
   console.log('tick: ', tick);
   console.log('curr tick: ', currTick);
   console.log('sqrt price x96: ', sqrtPriceX96);
