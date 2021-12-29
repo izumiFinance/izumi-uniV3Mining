@@ -284,7 +284,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         }
     }
 
-    function depositWithuniToken(
+    function deposit(
         uint256 amount0Desired,
         uint256 amount1Desired,
         uint256 numIZI
