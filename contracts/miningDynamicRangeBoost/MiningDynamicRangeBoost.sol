@@ -384,7 +384,7 @@ contract MiningDynamicRangeBoost is MiningBase {
             (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
                 uniV3NFTManager
             ).collect(
-                UniswapCallingParams.collectParams(tokenId, msg.sender)
+                UniswapCallingParams.collectParams(tokenId, address(this))
             );
             uint256 amountETH = token0IsETH ? amount0: amount1;
             IWETH9(weth).withdraw(amountETH);
