@@ -213,9 +213,10 @@ contract MiningDynamicRangeBoost is MiningBase {
     }
 
     /// @dev compute tick range converted from [oraclePrice / 2, oraclePrice * 2]
+    /// @param stdTick, (tickLeft + tickRight) / 2 should not too differ from stdTick
     /// @return tickLeft
     /// @return tickRight
-    function _getTickRange()
+    function _getTickRange(int24 stdTick)
         private
         view
         returns (
@@ -224,6 +225,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         )
     {
         (int24 avgTick, , , ) = swapPool.getAvgTickPriceWithin2Hour();
+        int56 delta = int56(avgTick) - int56(stdTick);
+        delta = (delta >= 0) ? delta: -delta;
+        require(delta < 2500, "TICK BIAS");
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(fee);
         // 1.0001^6932 = 2
         tickLeft = Math.max(avgTick - 6932, TICK_MIN);
@@ -287,11 +291,12 @@ contract MiningDynamicRangeBoost is MiningBase {
     function deposit(
         uint256 amount0Desired,
         uint256 amount1Desired,
-        uint256 numIZI
+        uint256 numIZI,
+        int24 stdTick
     ) external payable nonReentrant {
         _recvTokenFromUser(token0, msg.sender, amount0Desired);
         _recvTokenFromUser(token1, msg.sender, amount1Desired);
-        (int24 tickLeft, int24 tickRight) = _getTickRange();
+        (int24 tickLeft, int24 tickRight) = _getTickRange(stdTick);
 
         TokenStatus memory newTokenStatus;
 
