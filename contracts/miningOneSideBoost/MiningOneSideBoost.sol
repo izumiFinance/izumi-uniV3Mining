@@ -506,7 +506,7 @@ contract MiningOneSideBoost is MiningBase {
             (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
                 uniV3NFTManager
             ).collect(
-                UniswapCallingParams.collectParams(tokenId, msg.sender)
+                UniswapCallingParams.collectParams(tokenId, address(this))
             );
             (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)? (amount0, amount1) : (amount1, amount0);
             if (amountLock > 0) {
