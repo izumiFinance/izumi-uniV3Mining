@@ -5,12 +5,12 @@ const BigNumber = require("bignumber.js");
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node deployMiningOneSideBoostTwoReward.js \
-//     'WETH9' 'iZi' 3000 \
-//     'iZi' 10 \
-//     'BIT' 10 \
-//     3 \
-//     0 1000000000000 \
-//     0
+//     'WETH9' 'YIN' 3000 \
+//     'iZi' 4 iZi_PROVIDER \
+//     'YIN' 0.5 YIN_PROVIDER \
+//     1 \
+//     12863 200000 \
+//     1
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -25,17 +25,21 @@ var para = {
     rewardTokenSymbol0: v[5],
     rewardTokenAddress0: contracts[net][v[5]],
     rewardPerBlock0: v[6],
+    provider0Symbol: v[7],
+    provider0: contracts[net][v[7]],
 
-    rewardTokenSymbol1: v[7],
-    rewardTokenAddress1: contracts[net][v[7]],
-    rewardPerBlock1: v[8],
+    rewardTokenSymbol1: v[8],
+    rewardTokenAddress1: contracts[net][v[8]],
+    rewardPerBlock1: v[9],
+    provider1Symbol: v[10],
+    provider1: contracts[net][v[10]],
 
-    lockBoostMultiplier: v[9],
+    lockBoostMultiplier: v[11],
 
-    startBlock: v[10],
-    endBlock: v[11],
+    startBlock: v[12],
+    endBlock: v[13],
 
-    boost: v[12],
+    boost: v[14],
 }
 
 
@@ -53,7 +57,7 @@ async function getDecimal(token) {
 async function getNumNoDecimal(tokenAddr, num) {
   var token = await attachToken(tokenAddr);
   var decimal = await getDecimal(token);
-  var numNoDecimal = num * (10 ** decimal);
+  var numNoDecimal = BigNumber(num).times(10 ** decimal);
   return numNoDecimal.toFixed(0);
 }
 
@@ -97,20 +101,20 @@ async function main() {
 
   const mining = await Mining.deploy(
     {
-      uniV3NFTManager: contracts[net].nftManger,
+      uniV3NFTManager: contracts[net].nftManager,
       uniTokenAddr: para.tokenUniAddress,
       lockTokenAddr: para.tokenLockAddress,
       fee: para.fee
     },
     [{
       rewardToken: para.rewardTokenAddress0,
-      provider: deployer.address,
+      provider: para.provider0,
       accRewardPerShare: 0,
       rewardPerBlock: para.rewardPerBlock0,
     },
     {
         rewardToken: para.rewardTokenAddress1,
-        provider: deployer.address,
+        provider: para.provider1,
         accRewardPerShare: 0,
         rewardPerBlock: para.rewardPerBlock1,
     }],
@@ -122,8 +126,8 @@ async function main() {
 
   // console.log(mining.deployTransaction);
   
-  await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
-  await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
+  // await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
+  // await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
 
   console.log("MiningOneSideBoost Contract Address: " , mining.address);
 
