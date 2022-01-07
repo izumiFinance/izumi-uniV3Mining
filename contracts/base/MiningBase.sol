@@ -13,7 +13,17 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "../libraries/FixedPoints.sol";
 import "../libraries/Math.sol";
+import "../uniswap/interfaces.sol";
 import "../multicall.sol";
+
+/// @title Interface for WETH9
+interface IWETH9 is IERC20 {
+    /// @notice Deposit ether to get wrapped ether
+    function deposit() external payable;
+
+    /// @notice Withdraw wrapped ether to get ether
+    function withdraw(uint256) external;
+}
 
 abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
@@ -53,6 +63,25 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @notice Current total virtual liquidity.
     uint256 public totalVLiquidity;
 
+    /// @notice (1 - feeRemainPercent/100) is charging rate of uniswap fee
+    uint24 public feeRemainPercent;
+
+    uint256 public totalFeeCharged0;
+    uint256 public totalFeeCharged1;
+
+
+    struct PoolInfo {
+        address token0;
+        address token1;
+        uint24 fee;
+    }
+
+    PoolInfo public rewardPool;
+
+    address public weth;
+
+    address public chargeReceiver;
+
     /// @notice emit if user successfully deposit
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
@@ -79,6 +108,47 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @param rewardToken address of reward erc20-token
     /// @param provider New provider
     event ModifyProvider(address indexed rewardToken, address provider);
+
+    function _setRewardPool(
+        address tokenA,
+        address tokenB,
+        uint24 fee
+    ) internal {
+        (rewardPool.token0, rewardPool.token1) = (tokenA < tokenB)? (tokenA, tokenB) : (tokenB, tokenA);
+        rewardPool.fee = fee;
+        totalFeeCharged0 = 0;
+        totalFeeCharged1 = 0;
+    }
+
+    constructor(
+        uint24 _feeChargePercent, address _uniV3NFTManager, address tokenA, address tokenB, uint24 fee, address _chargeReceiver
+    ) {
+        require(_feeChargePercent <= 100, "charge percent <= 100");
+        feeRemainPercent = 100 - feeRemainPercent;
+        weth = INonfungiblePositionManager(_uniV3NFTManager).WETH9();
+        chargeReceiver = _chargeReceiver;
+        _setRewardPool(tokenA, tokenB, fee);
+    }
+
+    /// @notice Transfers ETH to the recipient address
+    /// @dev Fails with `STE`
+    /// @param to The destination of the transfer
+    /// @param value The value to be transferred
+    function _safeTransferETH(address to, uint256 value) internal {
+        (bool success, ) = to.call{value: value}(new bytes(0));
+        require(success, "STE");
+    }
+
+    function _safeTransferToken(address token, address to, uint256 value) internal {
+        if (value > 0) {
+            if (token == address(weth)) {
+                IWETH9(token).withdraw(value);
+                _safeTransferETH(msg.sender, value);
+            } else {
+                IERC20(token).safeTransfer(to, value);
+            }
+        }
+    }
 
     /// @notice Update reward variables to be up-to-date.
     /// @param vLiquidity vLiquidity to add or minus
@@ -336,5 +406,17 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         require(rewardIdx < rewardInfosLen, "OUT OF REWARD INFO RANGE");
         rewardInfos[rewardIdx].provider = provider;
         emit ModifyProvider(rewardInfos[rewardIdx].rewardToken, provider);
+    }
+
+    function modifyChargeReceiver(address _chargeReceiver) external onlyOwner {
+        chargeReceiver = _chargeReceiver;
+    }
+
+    function collectFeeCharged() external {
+        require(msg.sender == chargeReceiver, "NOT RECEIVER");
+        _safeTransferToken(rewardPool.token0, msg.sender, totalFeeCharged0);
+        _safeTransferToken(rewardPool.token1, msg.sender, totalFeeCharged1);
+        totalFeeCharged0 = 0;
+        totalFeeCharged1 = 0;
     }
 }

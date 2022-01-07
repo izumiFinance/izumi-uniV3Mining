@@ -13,53 +13,19 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import "../multicall.sol";
 import "../libraries/Math.sol";
+import "../libraries/UniswapCallingParams.sol";
 
 import "../base/MiningBase.sol";
 
-/// @title Uniswap V3 Nonfungible Position Manager Interface
-interface PositionManagerV3 {
-    function positions(uint256 tokenId)
-        external
-        view
-        returns (
-            uint96 nonce,
-            address operator,
-            address token0,
-            address token1,
-            uint24 fee,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        );
-
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) external;
-
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
+contract MiningFixRangeBoostV2 is MiningBase, IERC721Receiver {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
-    struct PoolInfo {
-        address token0;
-        address token1;
-        uint24 fee;
-    }
-
     /// @dev Contract of the uniV3 Nonfungible Position Manager.
-    PositionManagerV3 uniV3NFTManager;
-    PoolInfo public rewardPool;
+    address uniV3NFTManager;
 
     /// @dev The reward range of this mining contract.
     int24 rewardUpperTick;
@@ -71,6 +37,8 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
         uint256 validVLiquidity;
         uint256 nIZI;
         uint256 lastTouchBlock;
+        uint256 lastTokensOwed0;
+        uint256 lastTokensOwed1;
         uint256[] lastTouchAccRewardPerShare;
     }
 
@@ -85,25 +53,29 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
             lastTouchAccRewardPerShare: ts.lastTouchAccRewardPerShare
         });
     }
+    struct PoolParams {
+        address uniV3NFTManager;
+        address token0;
+        address token1;
+        uint24 fee;
+    }
+
 
     constructor(
-        address _uniV3NFTManager,
-        address token0,
-        address token1,
-        uint24 fee,
+        PoolParams memory poolParams,
         RewardInfo[] memory _rewardInfos,
         address iziTokenAddr,
         int24 _rewardUpperTick,
         int24 _rewardLowerTick,
         uint256 _startBlock,
-        uint256 _endBlock
-    ) {
-        uniV3NFTManager = PositionManagerV3(_uniV3NFTManager);
+        uint256 _endBlock,
+        uint24 _feeChargePercent,
+        address _chargeReceiver
+    ) MiningBase(_feeChargePercent, poolParams.uniV3NFTManager, poolParams.token0, poolParams.token1, poolParams.fee, _chargeReceiver) {
+        uniV3NFTManager = poolParams.uniV3NFTManager;
+
         require(_rewardLowerTick < _rewardUpperTick, "L<U");
-        require(token0 < token1, "TOKEN0 < TOKEN1 NOT MATCH");
-        rewardPool.token0 = token0;
-        rewardPool.token1 = token1;
-        rewardPool.fee = fee;
+        require(poolParams.token0 < poolParams.token1, "TOKEN0 < TOKEN1 NOT MATCH");
 
         rewardInfosLen = _rewardInfos.length;
         require(rewardInfosLen > 0, "NO REWARD");
@@ -127,6 +99,7 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
 
         totalVLiquidity = 0;
         totalNIZI = 0;
+
     }
 
     /// @notice Used for ERC721 safeTransferFrom
@@ -205,7 +178,9 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
         uint256 tokenId,
         uint256 vLiquidity,
         uint256 validVLiquidity,
-        uint256 nIZI
+        uint256 nIZI,
+        uint256 lastTokensOwed0,
+        uint256 lastTokensOwed1
     ) internal {
         TokenStatus storage t = tokenStatus[tokenId];
 
@@ -215,6 +190,8 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
 
         t.lastTouchBlock = lastTouchBlock;
         t.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
+        t.lastTokensOwed0 = lastTokensOwed0;
+        t.lastTokensOwed1 = lastTokensOwed1;
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
@@ -257,34 +234,35 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
         external
         returns (uint256 vLiquidity)
     {
-        address owner = uniV3NFTManager.ownerOf(tokenId);
+        address owner = INonfungiblePositionManager(uniV3NFTManager).ownerOf(tokenId);
         require(owner == msg.sender, "NOT OWNER");
+        INonfungiblePositionManager.Position memory position;
 
         (
             ,
             ,
-            address token0,
-            address token1,
-            uint24 fee,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity,
+            position.token0,
+            position.token1,
+            position.fee,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity,
             ,
             ,
-            ,
-
-        ) = uniV3NFTManager.positions(tokenId);
+            position.tokensOwed0,
+            position.tokensOwed1
+        ) = INonfungiblePositionManager(uniV3NFTManager).positions(tokenId);
 
         // alternatively we can compute the pool address with tokens and fee and compare the address directly
-        require(token0 == rewardPool.token0, "TOEKN0 NOT MATCH");
-        require(token1 == rewardPool.token1, "TOKEN1 NOT MATCH");
-        require(fee == rewardPool.fee, "FEE NOT MATCH");
+        require(position.token0 == rewardPool.token0, "TOEKN0 NOT MATCH");
+        require(position.token1 == rewardPool.token1, "TOKEN1 NOT MATCH");
+        require(position.fee == rewardPool.fee, "FEE NOT MATCH");
 
         // require the NFT token has interaction with [rewardLowerTick, rewardUpperTick]
-        vLiquidity = _getVLiquidityForNFT(tickLower, tickUpper, liquidity);
+        vLiquidity = _getVLiquidityForNFT(position.tickLower, position.tickUpper, position.liquidity);
         require(vLiquidity > 0, "INVALID TOKEN");
 
-        uniV3NFTManager.safeTransferFrom(msg.sender, address(this), tokenId);
+        INonfungiblePositionManager(uniV3NFTManager).safeTransferFrom(msg.sender, address(this), tokenId);
         owners[tokenId] = msg.sender;
         bool res = tokenIds[msg.sender].add(tokenId);
         require(res);
@@ -299,7 +277,7 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
         _updateNIZI(nIZI, true);
         uint256 validVLiquidity = _computeValidVLiquidity(vLiquidity, nIZI);
         require(nIZI < FixedPoints.Q128 / 6, "NIZI O");
-        _newTokenStatus(tokenId, vLiquidity, validVLiquidity, nIZI);
+        _newTokenStatus(tokenId, vLiquidity, validVLiquidity, nIZI, uint256(position.tokensOwed0), uint256(position.tokensOwed1));
         if (nIZI > 0) {
             // lock izi in this contract
             iziToken.safeTransferFrom(msg.sender, address(this), nIZI);
@@ -329,7 +307,25 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
             iziToken.safeTransfer(msg.sender, nIZI);
         }
 
-        uniV3NFTManager.safeTransferFrom(address(this), msg.sender, tokenId);
+        // charge and refund remain fee to user
+
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
+            uniV3NFTManager
+        ).collect(
+            UniswapCallingParams.collectParams(tokenId, address(this))
+        );
+
+        uint256 lastTokensOwed0 = tokenStatus[tokenId].lastTokensOwed0;
+        uint256 lastTokensOwed1 = tokenStatus[tokenId].lastTokensOwed1;
+
+        uint256 refundAmount0 = lastTokensOwed0 + (amount0 - lastTokensOwed0) * feeRemainPercent / 100;
+        uint256 refundAmount1 = lastTokensOwed1 + (amount1 - lastTokensOwed1) * feeRemainPercent / 100;
+        _safeTransferToken(rewardPool.token0, msg.sender, refundAmount0);
+        _safeTransferToken(rewardPool.token1, msg.sender, refundAmount1);
+        totalFeeCharged0 += amount0 - refundAmount0;
+        totalFeeCharged1 += amount1 - refundAmount1;
+
+        INonfungiblePositionManager(uniV3NFTManager).safeTransferFrom(address(this), msg.sender, tokenId);
         owners[tokenId] = address(0);
         bool res = tokenIds[msg.sender].remove(tokenId);
         require(res);
@@ -360,7 +356,7 @@ contract MiningFixRangeBoost is MiningBase, IERC721Receiver {
     function emergenceWithdraw(uint256 tokenId) external override onlyOwner {
         address owner = owners[tokenId];
         require(owner != address(0));
-        uniV3NFTManager.safeTransferFrom(
+        INonfungiblePositionManager(uniV3NFTManager).safeTransferFrom(
             address(this),
             owners[tokenId],
             tokenId

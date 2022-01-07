@@ -16,15 +16,6 @@ import "../libraries/UniswapCallingParams.sol";
 
 import "../base/MiningBase.sol";
 
-/// @title Interface for WETH9
-interface IWETH9 is IERC20 {
-    /// @notice Deposit ether to get wrapped ether
-    function deposit() external payable;
-
-    /// @notice Withdraw wrapped ether to get ether
-    function withdraw(uint256) external;
-}
-
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
 contract MiningDynamicRangeBoost is MiningBase {
@@ -36,11 +27,6 @@ contract MiningDynamicRangeBoost is MiningBase {
 
     int24 internal constant TICK_MAX = 500000;
     int24 internal constant TICK_MIN = -500000;
-
-    address public weth;
-    address public token0;
-    address public token1;
-    uint24 public fee;
 
     bool public token0IsETH;
     bool public token1IsETH;
@@ -90,25 +76,23 @@ contract MiningDynamicRangeBoost is MiningBase {
         RewardInfo[] memory _rewardInfos,
         address iziTokenAddr,
         uint256 _startBlock,
-        uint256 _endBlock
-    ) {
+        uint256 _endBlock,
+        uint24 feeChargePercent,
+        address _chargeReceiver
+    ) MiningBase(feeChargePercent, poolParams.uniV3NFTManager, poolParams.token0, poolParams.token1, poolParams.fee, _chargeReceiver) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
-        token0 = poolParams.token0;
-        token1 = poolParams.token1;
-        fee = poolParams.fee;
 
-        require(token0 < token1, "TOKEN0 < TOKEN1 NOT MATCH");
+        require(rewardPool.token0 < rewardPool.token1, "TOKEN0 < TOKEN1 NOT MATCH");
 
-        weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
-        token0IsETH = (token0 == weth);
-        token1IsETH = (token1 == weth);
+        token0IsETH = (rewardPool.token0 == weth);
+        token1IsETH = (rewardPool.token1 == weth);
 
-        IERC20(token0).safeApprove(uniV3NFTManager, type(uint256).max);
-        IERC20(token1).safeApprove(uniV3NFTManager, type(uint256).max);
+        IERC20(rewardPool.token0).safeApprove(uniV3NFTManager, type(uint256).max);
+        IERC20(rewardPool.token1).safeApprove(uniV3NFTManager, type(uint256).max);
 
-        swapPool = IUniswapV3Factory(uniFactory).getPool(token0, token1, fee);
+        swapPool = IUniswapV3Factory(uniFactory).getPool(rewardPool.token0, rewardPool.token1, rewardPool.fee);
         require(swapPool != address(0), "NO UNI POOL");
 
         require(UniswapOracle.getSlot0(swapPool).observationCardinalityNext >= 100, "CAR");
@@ -156,9 +140,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         )
     {
         return (
-            token0,
-            token1,
-            fee,
+            rewardPool.token0,
+            rewardPool.token1,
+            rewardPool.fee,
             address(iziToken),
             lastTouchBlock,
             totalVLiquidity,
@@ -228,7 +212,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         int56 delta = int56(avgTick) - int56(stdTick);
         delta = (delta >= 0) ? delta: -delta;
         require(delta < 2500, "TICK BIAS");
-        int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(fee);
+        int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(rewardPool.fee);
         // 1.0001^6932 = 2
         tickLeft = Math.max(avgTick - 6932, TICK_MIN);
         tickRight = Math.min(avgTick + 6932, TICK_MAX);
@@ -294,15 +278,15 @@ contract MiningDynamicRangeBoost is MiningBase {
         uint256 numIZI,
         int24 stdTick
     ) external payable nonReentrant {
-        _recvTokenFromUser(token0, msg.sender, amount0Desired);
-        _recvTokenFromUser(token1, msg.sender, amount1Desired);
+        _recvTokenFromUser(rewardPool.token0, msg.sender, amount0Desired);
+        _recvTokenFromUser(rewardPool.token1, msg.sender, amount1Desired);
         (int24 tickLeft, int24 tickRight) = _getTickRange(stdTick);
 
         TokenStatus memory newTokenStatus;
 
         INonfungiblePositionManager.MintParams
             memory uniParams = UniswapCallingParams.mintParams(
-                token0, token1, fee, amount0Desired, amount1Desired, tickLeft, tickRight, type(uint256).max
+                rewardPool.token0, rewardPool.token1, rewardPool.fee, amount0Desired, amount1Desired, tickLeft, tickRight, type(uint256).max
             );
         uint256 actualAmount0; 
         uint256 actualAmount1;
@@ -326,10 +310,10 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         INonfungiblePositionManager(uniV3NFTManager).refundETH();
         if (actualAmount0 < amount0Desired) {
-            _refundTokenToUser(token0, msg.sender, amount0Desired - actualAmount0);
+            _refundTokenToUser(rewardPool.token0, msg.sender, amount0Desired - actualAmount0);
         }
         if (actualAmount1 < amount1Desired) {
-            _refundTokenToUser(token1, msg.sender, amount1Desired - actualAmount1);
+            _refundTokenToUser(rewardPool.token1, msg.sender, amount1Desired - actualAmount1);
         }
 
         _updateGlobalStatus();
@@ -377,26 +361,31 @@ contract MiningDynamicRangeBoost is MiningBase {
             // refund iZi to user
             iziToken.safeTransfer(msg.sender, t.nIZI);
         }
+
+        // first charge and send remain fee from uniswap to user
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
+            uniV3NFTManager
+        ).collect(
+            UniswapCallingParams.collectParams(tokenId, address(this))
+        );
+        uint256 refundAmount0 = amount0 * feeRemainPercent / 100;
+        uint256 refundAmount1 = amount1 * feeRemainPercent / 100;
+        _safeTransferToken(rewardPool.token0, msg.sender, refundAmount0);
+        _safeTransferToken(rewardPool.token1, msg.sender, refundAmount1);
+        totalFeeCharged0 += amount0 - refundAmount0;
+        totalFeeCharged1 += amount1 - refundAmount1;
+
+        // then decrease and collect from uniswap
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
             UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
         );
-
-        if (!token0IsETH && !token1IsETH) {
-            INonfungiblePositionManager(uniV3NFTManager).collect(
-                UniswapCallingParams.collectParams(tokenId, msg.sender)
-            );
-        } else {
-            (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
-                uniV3NFTManager
-            ).collect(
-                UniswapCallingParams.collectParams(tokenId, address(this))
-            );
-            uint256 amountETH = token0IsETH ? amount0: amount1;
-            IWETH9(weth).withdraw(amountETH);
-            _refundTokenToUser(token0, msg.sender, amount0);
-            _refundTokenToUser(token1, msg.sender, amount1);
-
-        }
+        (amount0, amount1) = INonfungiblePositionManager(
+            uniV3NFTManager
+        ).collect(
+            UniswapCallingParams.collectParams(tokenId, address(this))
+        );
+        _safeTransferToken(rewardPool.token0, msg.sender, amount0);
+        _safeTransferToken(rewardPool.token1, msg.sender, amount1);
 
         owners[tokenId] = address(0);
         bool res = tokenIds[msg.sender].remove(tokenId);
@@ -410,10 +399,12 @@ contract MiningDynamicRangeBoost is MiningBase {
     function collect(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         _collectReward(tokenId);
-        INonfungiblePositionManager.CollectParams
-            memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-        // collect swap fee from uniswap
-        INonfungiblePositionManager(uniV3NFTManager).collect(params);
+        if (feeRemainPercent == 100) {
+            INonfungiblePositionManager.CollectParams
+                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
+            // collect swap fee from uniswap
+            INonfungiblePositionManager(uniV3NFTManager).collect(params);
+        }
     }
 
     /// @notice Collect all pending rewards.
@@ -423,10 +414,12 @@ contract MiningDynamicRangeBoost is MiningBase {
             uint256 tokenId = ids.at(i);
             require(owners[tokenId] == msg.sender, "NOT OWNER");
             _collectReward(tokenId);
-            INonfungiblePositionManager.CollectParams
-                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-            // collect swap fee from uniswap
-            INonfungiblePositionManager(uniV3NFTManager).collect(params);
+            if (feeRemainPercent == 100) {
+                INonfungiblePositionManager.CollectParams
+                    memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
+                // collect swap fee from uniswap
+                INonfungiblePositionManager(uniV3NFTManager).collect(params);
+            }
         }
     }
 

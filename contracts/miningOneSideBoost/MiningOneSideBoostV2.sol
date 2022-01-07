@@ -16,18 +16,8 @@ import "../libraries/UniswapCallingParams.sol";
 
 import "../base/MiningBase.sol";
 
-/// @title Interface for WETH9
-interface IWETH9 is IERC20 {
-    /// @notice Deposit ether to get wrapped ether
-    function deposit() external payable;
-
-    /// @notice Withdraw wrapped ether to get ether
-    function withdraw(uint256) external;
-}
-
-
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningOneSideBoost is MiningBase {
+contract MiningOneSideBoostV2 is MiningBase {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -36,12 +26,6 @@ contract MiningOneSideBoost is MiningBase {
 
     int24 internal constant TICK_MAX = 500000;
     int24 internal constant TICK_MIN = -500000;
-
-    struct PoolInfo {
-        address token0;
-        address token1;
-        uint24 fee;
-    }
 
     bool public uniIsETH;
 
@@ -52,7 +36,6 @@ contract MiningOneSideBoost is MiningBase {
     address public uniV3NFTManager;
     address public uniFactory;
     address public swapPool;
-    PoolInfo public rewardPool;
 
     uint256 public lockBoostMultiplier;
     /// @dev Current total lock token
@@ -85,24 +68,6 @@ contract MiningOneSideBoost is MiningBase {
 
     receive() external payable {}
 
-    function _setRewardPool(
-        address _uniToken,
-        address _lockToken,
-        uint24 fee
-    ) internal {
-        address token0;
-        address token1;
-        if (_uniToken < _lockToken) {
-            token0 = _uniToken;
-            token1 = _lockToken;
-        } else {
-            token0 = _lockToken;
-            token1 = _uniToken;
-        }
-        rewardPool.token0 = token0;
-        rewardPool.token1 = token1;
-        rewardPool.fee = fee;
-    }
 
     struct PoolParams {
         address uniV3NFTManager;
@@ -117,17 +82,19 @@ contract MiningOneSideBoost is MiningBase {
         uint256 _lockBoostMultiplier,
         address iziTokenAddr,
         uint256 _startBlock,
-        uint256 _endBlock
+        uint256 _endBlock,
+        uint24 feeChargePercent,
+        address _chargeReceiver
+    ) MiningBase(
+        feeChargePercent, 
+        poolParams.uniV3NFTManager, 
+        poolParams.uniTokenAddr,
+        poolParams.lockTokenAddr,
+        poolParams.fee, 
+        _chargeReceiver
     ) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
 
-        _setRewardPool(
-            poolParams.uniTokenAddr,
-            poolParams.lockTokenAddr,
-            poolParams.fee
-        );
-
-        address weth = INonfungiblePositionManager(uniV3NFTManager).WETH9();
         require(weth != poolParams.lockTokenAddr, "WETH NOT SUPPORT");
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
@@ -346,15 +313,6 @@ contract MiningOneSideBoost is MiningBase {
         (avgTick, avgSqrtPriceX96, , ) = swapPool.getAvgTickPriceWithin2Hour();
     }
 
-    /// @notice Transfers ETH to the recipient address
-    /// @dev Fails with `STE`
-    /// @param to The destination of the transfer
-    /// @param value The value to be transferred
-    function safeTransferETH(address to, uint256 value) internal {
-        (bool success, ) = to.call{value: value}(new bytes(0));
-        require(success, "STE");
-    }
-
     function depositWithuniToken(
         uint256 uniAmount,
         uint256 numIZI,
@@ -417,7 +375,7 @@ contract MiningOneSideBoost is MiningBase {
                 INonfungiblePositionManager(uniV3NFTManager).refundETH();
                 // from this to msg.sender
                 if (address(this).balance > 0)
-                    safeTransferETH(msg.sender, address(this).balance);
+                    _safeTransferETH(msg.sender, address(this).balance);
             } else {
                 // refund uniToken
                 IERC20(uniToken).safeTransfer(
@@ -494,30 +452,30 @@ contract MiningOneSideBoost is MiningBase {
             totalLock -= t.lockAmount;
         }
 
-        INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            UniswapCallingParams.decreaseLiquidityParams(tokenId, t.uniLiquidity, type(uint256).max)
+        // first charge and send remain fee from uniswap to user
+        (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
+            uniV3NFTManager
+        ).collect(
+            UniswapCallingParams.collectParams(tokenId, address(this))
         );
+        uint256 refundAmount0 = amount0 * feeRemainPercent / 100;
+        uint256 refundAmount1 = amount1 * feeRemainPercent / 100;
+        _safeTransferToken(rewardPool.token0, msg.sender, refundAmount0);
+        _safeTransferToken(rewardPool.token1, msg.sender, refundAmount1);
+        totalFeeCharged0 += amount0 - refundAmount0;
+        totalFeeCharged1 += amount1 - refundAmount1;
 
-        if (!uniIsETH) {
-            INonfungiblePositionManager(uniV3NFTManager).collect(
-                UniswapCallingParams.collectParams(tokenId, msg.sender)
-            );
-        } else {
-            (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
-                uniV3NFTManager
-            ).collect(
-                UniswapCallingParams.collectParams(tokenId, address(this))
-            );
-            (uint256 amountUni, uint256 amountLock) = (uniToken < lockToken)? (amount0, amount1) : (amount1, amount0);
-            if (amountLock > 0) {
-                IERC20(lockToken).safeTransfer(msg.sender, amountLock);
-            }
-
-            if (amountUni > 0) {
-                IWETH9(uniToken).withdraw(amountUni);
-                safeTransferETH(msg.sender, amountUni);
-            }
-        }
+        // then decrease and collect from uniswap
+        INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
+        );
+        (amount0, amount1) = INonfungiblePositionManager(
+            uniV3NFTManager
+        ).collect(
+            UniswapCallingParams.collectParams(tokenId, address(this))
+        );
+        _safeTransferToken(rewardPool.token0, msg.sender, amount0);
+        _safeTransferToken(rewardPool.token1, msg.sender, amount1);
 
         owners[tokenId] = address(0);
         bool res = tokenIds[msg.sender].remove(tokenId);
@@ -531,10 +489,12 @@ contract MiningOneSideBoost is MiningBase {
     function collect(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
         _collectReward(tokenId);
-        INonfungiblePositionManager.CollectParams
-            memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-        // collect swap fee from uniswap
-        INonfungiblePositionManager(uniV3NFTManager).collect(params);
+        if (feeRemainPercent == 100) {
+            INonfungiblePositionManager.CollectParams
+                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
+            // collect swap fee from uniswap
+            INonfungiblePositionManager(uniV3NFTManager).collect(params);
+        }
     }
 
     /// @notice Collect all pending rewards.
@@ -544,10 +504,12 @@ contract MiningOneSideBoost is MiningBase {
             uint256 tokenId = ids.at(i);
             require(owners[tokenId] == msg.sender, "NOT OWNER");
             _collectReward(tokenId);
-            INonfungiblePositionManager.CollectParams
-                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-            // collect swap fee from uniswap
-            INonfungiblePositionManager(uniV3NFTManager).collect(params);
+            if (feeRemainPercent == 100) {
+                INonfungiblePositionManager.CollectParams
+                    memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
+                // collect swap fee from uniswap
+                INonfungiblePositionManager(uniV3NFTManager).collect(params);
+            }
         }
     }
 
