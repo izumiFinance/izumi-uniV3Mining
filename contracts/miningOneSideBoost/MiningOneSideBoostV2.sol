@@ -66,9 +66,6 @@ contract MiningOneSideBoostV2 is MiningBase {
         });
     }
 
-    receive() external payable {}
-
-
     struct PoolParams {
         address uniV3NFTManager;
         address uniTokenAddr;

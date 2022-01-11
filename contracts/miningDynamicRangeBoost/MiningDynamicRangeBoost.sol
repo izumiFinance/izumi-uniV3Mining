@@ -63,8 +63,6 @@ contract MiningDynamicRangeBoost is MiningBase {
         });
     }
 
-    receive() external payable {}
-
     struct PoolParams {
         address uniV3NFTManager;
         address token0;
