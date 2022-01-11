@@ -302,6 +302,8 @@ contract MiningOneSideBoostV2 is MiningBase {
             // uniToken is X
             tickLeft = Math.max(currTick + 1, avgTick);
             tickRight = TICK_MAX;
+            // round up to times of tickSpacing
+            // uniswap only receive tick which is times of tickSpacing
             tickLeft = Math.tickUpper(tickLeft, tickSpacing);
             tickRight = Math.tickUpper(tickRight, tickSpacing);
         } else {
@@ -309,6 +311,8 @@ contract MiningOneSideBoostV2 is MiningBase {
             // uniToken is Y
             tickRight = Math.min(currTick, avgTick);
             tickLeft = TICK_MIN;
+            // round down to times of tickSpacing
+            // uniswap only receive tick which is times of tickSpacing
             tickLeft = Math.tickFloor(tickLeft, tickSpacing);
             tickRight = Math.tickFloor(tickRight, tickSpacing);
         }
