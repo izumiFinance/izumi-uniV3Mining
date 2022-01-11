@@ -226,6 +226,8 @@ contract MiningOneSideBoostV2 is MiningBase {
 
         t.lastTouchBlock = lastTouchBlock;
         t.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
+        // mark lastTouchAccRewardPerShare as current accRewardPerShare
+        // to prevent collect reward generated before mining
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
@@ -244,6 +246,8 @@ contract MiningOneSideBoostV2 is MiningBase {
         t.nIZI = nIZI;
 
         t.lastTouchBlock = lastTouchBlock;
+        // mark lastTouchAccRewardPerShare as current accRewardPerShare
+        // to prevent second-collect reward generated before update
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
