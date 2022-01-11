@@ -94,6 +94,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         swapPool = IUniswapV3Factory(uniFactory).getPool(rewardPool.token0, rewardPool.token1, rewardPool.fee);
         require(swapPool != address(0), "NO UNI POOL");
 
+        // check cardinality to prevent sandwitch attach
         require(UniswapOracle.getSlot0(swapPool).observationCardinalityNext >= 100, "CAR");
 
         rewardInfosLen = _rewardInfos.length;
