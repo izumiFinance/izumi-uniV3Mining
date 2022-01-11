@@ -53,6 +53,7 @@ contract MiningDynamicRangeBoost is MiningBase {
 
     mapping(uint256 => TokenStatus) public tokenStatus;
 
+    // override for mining base
     function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
         TokenStatus memory ts = tokenStatus[tokenId];
         t = BaseTokenStatus({
