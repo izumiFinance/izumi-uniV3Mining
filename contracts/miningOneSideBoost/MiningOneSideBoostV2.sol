@@ -57,7 +57,7 @@ contract MiningOneSideBoostV2 is MiningBase {
     mapping(uint256 => TokenStatus) public tokenStatus;
 
     receive() external payable {}
-    
+
     // override for mining base
     function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
         TokenStatus memory ts = tokenStatus[tokenId];
@@ -192,15 +192,24 @@ contract MiningOneSideBoostV2 is MiningBase {
             // sqrtPriceXP <= Q96 after >> operation
             sqrtPriceXP = (sqrtPriceXP >> 64);
         }
-        // priceXP <= Q160 if price >= 1
-        // priceXP <= Q96  if price < 1
+        // priceXP < Q160 if price >= 1
+        // priceXP < Q96  if price < 1
+        // if sqrtPrice < 1, sqrtPriceXP < 2^(96)
+        // if sqrtPrice > 1, precision of sqrtPriceXP is 32, sqrtPriceXP < 2^(160-64)
+        // uint256 is enough for sqrtPriceXP ** 2
         uint256 priceXP = (sqrtPriceXP * sqrtPriceXP) / precision;
     
         if (priceXP > 0) {
             if (uniToken < lockToken) {
                 // price is lockToken / uniToken
+                // uniAmount < Q96
+                // priceXP < Q160
+                // uniAmount * priceXP < Q256, uint256 is enough
                 lockAmount = (uniAmount * priceXP) / precision;
             } else {
+                // uniAmount < Q96
+                // precision < Q96
+                // uint256 is enough for uniAmount * precision
                 lockAmount = (uniAmount * precision) / priceXP;
             }
         } else {
