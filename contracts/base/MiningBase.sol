@@ -125,7 +125,9 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     ) {
         require(_feeChargePercent <= 100, "charge percent <= 100");
         feeRemainPercent = 100 - feeRemainPercent;
+        // mark weth erc token
         weth = INonfungiblePositionManager(_uniV3NFTManager).WETH9();
+        // receiver to receive charged uniswap fee
         chargeReceiver = _chargeReceiver;
         _setRewardPool(tokenA, tokenB, fee);
     }
