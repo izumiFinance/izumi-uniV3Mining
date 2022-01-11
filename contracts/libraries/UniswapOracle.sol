@@ -90,7 +90,7 @@ library UniswapOracle {
 
     // note if we call this interface, we must ensure that the 
     //    oldest observation preserved in pool is older than 2h ago
-    function _getAvgTickFromTarget(address pool, uint32 targetTimestamp, int56 latestTickCumu, uint32 latestTimestamp)
+    function _getAvgTickDuring2Hour(address pool, uint32 targetTimestamp, int56 latestTickCumu, uint32 latestTimestamp)
         private
         view
         returns (int24 tick) 
@@ -101,9 +101,8 @@ library UniswapOracle {
         int56[] memory tickCumulatives;
         
         (tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgo);
-        uint56 timeDelta = latestTimestamp - targetTimestamp;
 
-        int56 tickAvg = (latestTickCumu - tickCumulatives[0]) / int56(timeDelta);
+        int56 tickAvg = (latestTickCumu - tickCumulatives[0]) / int56(7200);
         tick = int24(tickAvg);
     }
 
@@ -147,10 +146,7 @@ library UniswapOracle {
                 // we are sure that the oldest observation is old enough
                 // we can safely call IUniswapV3Pool.observe(...) for it 1h ago
                 uint32 targetTimestamp = twoHourAgo;
-                if (targetTimestamp + 3600 > latestObservation.blockTimestamp) {
-                    targetTimestamp = latestObservation.blockTimestamp - 3600;
-                }
-                tick = _getAvgTickFromTarget(pool, targetTimestamp, latestObservation.tickCumulative, latestObservation.blockTimestamp);
+                tick = _getAvgTickDuring2Hour(pool, targetTimestamp, latestObservation.tickCumulative, latestObservation.blockTimestamp);
             }
             sqrtPriceX96 = LogPowMath.getSqrtPrice(tick);
             return (tick, sqrtPriceX96, slot0.tick, slot0.sqrtPriceX96);
