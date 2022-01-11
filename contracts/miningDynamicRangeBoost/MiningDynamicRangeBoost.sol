@@ -54,7 +54,7 @@ contract MiningDynamicRangeBoost is MiningBase {
     mapping(uint256 => TokenStatus) public tokenStatus;
 
     receive() external payable {}
-    
+
     // override for mining base
     function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
         TokenStatus memory ts = tokenStatus[tokenId];
@@ -255,6 +255,7 @@ contract MiningDynamicRangeBoost is MiningBase {
             // the other token must not be weth
             require(msg.value >= amount, "ETHER INSUFFICIENT");
         } else {
+            // receive token(not weth) from user
             IERC20(token).safeTransferFrom(
                 user,
                 address(this),
