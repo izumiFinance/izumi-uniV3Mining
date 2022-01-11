@@ -218,12 +218,16 @@ contract MiningDynamicRangeBoost is MiningBase {
         int56 delta = int56(avgTick) - int56(stdTick);
         delta = (delta >= 0) ? delta: -delta;
         require(delta < 2500, "TICK BIAS");
+        // tickSpacing != 0 is ensured before deploy this contract
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(rewardPool.fee);
         // 1.0001^6932 = 2
         tickLeft = Math.max(avgTick - 6932, TICK_MIN);
         tickRight = Math.min(avgTick + 6932, TICK_MAX);
+        // round down to times of tickSpacing
         tickLeft = Math.tickFloor(tickLeft, tickSpacing);
+        // round up to times of tickSpacing
         tickRight = Math.tickUpper(tickRight, tickSpacing);
+        // double check
         require(tickLeft < tickRight, "L<R");
     }
 
