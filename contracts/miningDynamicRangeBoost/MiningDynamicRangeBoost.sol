@@ -85,6 +85,7 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
+        // weth has been marked in the MiningBase constructor
         token0IsETH = (rewardPool.token0 == weth);
         token1IsETH = (rewardPool.token1 == weth);
 
@@ -103,6 +104,7 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             rewardInfos[i] = _rewardInfos[i];
+            // we could not believe accRewardPerShare from constructor args
             rewardInfos[i].accRewardPerShare = 0;
         }
 
@@ -161,6 +163,7 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         t.lastTouchBlock = lastTouchBlock;
         t.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
+        // prevent user collect reward generated before creating this token status
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
@@ -179,6 +182,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         t.nIZI = nIZI;
 
         t.lastTouchBlock = lastTouchBlock;
+        // prevent double collect
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
@@ -265,6 +269,7 @@ contract MiningDynamicRangeBoost is MiningBase {
             // the other token must not be weth
             safeTransferETH(user, amount);
         } else {
+            // for token not be weth
             IERC20(token).safeTransfer(
                 user,
                 amount
@@ -308,6 +313,7 @@ contract MiningDynamicRangeBoost is MiningBase {
         bool res = tokenIds[msg.sender].add(newTokenStatus.nftId);
         require(res);
 
+        // refund tokens to user
         INonfungiblePositionManager(uniV3NFTManager).refundETH();
         if (actualAmount0 < amount0Desired) {
             _refundTokenToUser(rewardPool.token0, msg.sender, amount0Desired - actualAmount0);
