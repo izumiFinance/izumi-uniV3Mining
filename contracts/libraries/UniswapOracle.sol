@@ -90,7 +90,7 @@ library UniswapOracle {
 
     // note if we call this interface, we must ensure that the 
     //    oldest observation preserved in pool is older than 2h ago
-    function _getAvgTickDuring2Hour(address pool, uint32 targetTimestamp, int56 latestTickCumu, uint32 latestTimestamp)
+    function _getAvgTickDuring2Hour(address pool, uint32 targetTimestamp, int56 latestTickCumu)
         private
         view
         returns (int24 tick) 
@@ -146,7 +146,7 @@ library UniswapOracle {
                 // we are sure that the oldest observation is old enough
                 // we can safely call IUniswapV3Pool.observe(...) for it 1h ago
                 uint32 targetTimestamp = twoHourAgo;
-                tick = _getAvgTickDuring2Hour(pool, targetTimestamp, latestObservation.tickCumulative, latestObservation.blockTimestamp);
+                tick = _getAvgTickDuring2Hour(pool, targetTimestamp, latestObservation.tickCumulative);
             }
             sqrtPriceX96 = LogPowMath.getSqrtPrice(tick);
             return (tick, sqrtPriceX96, slot0.tick, slot0.sqrtPriceX96);
