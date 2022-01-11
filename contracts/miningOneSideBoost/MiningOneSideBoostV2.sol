@@ -92,7 +92,7 @@ contract MiningOneSideBoostV2 is MiningBase {
         _chargeReceiver
     ) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
-
+        // locking eth is not support
         require(weth != poolParams.lockTokenAddr, "WETH NOT SUPPORT");
         uniFactory = INonfungiblePositionManager(uniV3NFTManager).factory();
 
@@ -116,9 +116,10 @@ contract MiningOneSideBoostV2 is MiningBase {
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             rewardInfos[i] = _rewardInfos[i];
+            // we cannot believe accRewardPerShare from constructor params
             rewardInfos[i].accRewardPerShare = 0;
         }
-
+        //  lock boost multiplier is at most 3
         require(_lockBoostMultiplier > 0, "M>0");
         require(_lockBoostMultiplier < 4, "M<4");
 
