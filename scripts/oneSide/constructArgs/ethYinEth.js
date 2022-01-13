@@ -32,6 +32,6 @@ module.exports = [
     }],
     1,
     contracts.ethereum.iZi,
-    13949864,
-    14135006,
+    13949414,
+    14134556,
 ];

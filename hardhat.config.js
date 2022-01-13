@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("uniswap-v3-deploy-plugin");
 require('hardhat-contract-sizer');
+require("@nomiclabs/hardhat-etherscan");
 // require('hardhat-docgen');
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -18,6 +19,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 
 const secret = require('./.secret.js');
 
+const apiKey = secret.pkApiKey;
 const sk = secret.pk;
 const sk2 = secret.pk2;
 const sk3 = secret.pk3;
@@ -69,5 +71,8 @@ module.exports = {
     path: './docs',
     clear: true,
     runOnCompile: true,
+  },
+  etherscan: {
+    apiKey: apiKey,
   }
 };

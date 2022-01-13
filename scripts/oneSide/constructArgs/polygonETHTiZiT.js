@@ -5,7 +5,6 @@ const uniTokenAddr = contracts.polygon.ETHT;
 const lockTokenAddr = contracts.polygon.iZiT;
 
 const rewardToken = contracts.polygon.iZiT;
-const provider = contracts.polygon.iZiT_PROVIDER;
 const rewardPerBlock = '2000000000000000000';
 
 
@@ -18,7 +17,7 @@ module.exports = [
     },
     [{
         rewardToken: rewardToken,
-        provider: provider,
+        provider: '0x3E8aE53D96006bd4c8462eDAFb4Fb8364007E744',
         accRewardPerShare: 0,
         rewardPerBlock: rewardPerBlock,
     }],
@@ -26,7 +25,6 @@ module.exports = [
     contracts.polygon.iZi,
     23591793,
     25591793,
-    1,
     30,
     '0x3E8aE53D96006bd4c8462eDAFb4Fb8364007E744',
 ];
