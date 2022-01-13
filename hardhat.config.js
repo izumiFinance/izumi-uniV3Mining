@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("uniswap-v3-deploy-plugin");
 require('hardhat-contract-sizer');
+// require('hardhat-docgen');
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -47,17 +48,26 @@ module.exports = {
       url: 'https://arb1.arbitrum.io/rpc',
       accounts: [sk]
     },
+    polygon: {
+      url: 'https://rpc-mainnet.maticvigil.com',
+      accounts: [sk]
+    },
     rinkeby: {
       url: "https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
       gas: 10000000,
-      gasPrice: 200000000,
+      gasPrice: 2500000000,
       accounts: [sk]
-    }
+    },
+    ethereum: {
+      url: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
+      gas: 7792207,
+      gasPrice: 77000000000,
+      accounts: [sk]
+    },
   },
-  ethereum:{
-      url: "",
-      gas: 1,
-      gasPrice: 1,
-      accounts: [sk]
+  docgen: {
+    path: './docs',
+    clear: true,
+    runOnCompile: true,
   }
 };
