@@ -485,7 +485,7 @@ contract MiningOneSideBoostV2 is MiningBase {
 
         // then decrease and collect from uniswap
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.uniLiquidity), type(uint256).max)
         );
         (amount0, amount1) = INonfungiblePositionManager(
             uniV3NFTManager
