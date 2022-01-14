@@ -145,7 +145,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         if (value > 0) {
             if (token == address(weth)) {
                 IWETH9(token).withdraw(value);
-                _safeTransferETH(msg.sender, value);
+                _safeTransferETH(to, value);
             } else {
                 IERC20(token).safeTransfer(to, value);
             }
@@ -414,10 +414,10 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         chargeReceiver = _chargeReceiver;
     }
 
-    function collectFeeCharged() external {
+    function collectFeeCharged() external nonReentrant {
         require(msg.sender == chargeReceiver, "NOT RECEIVER");
-        _safeTransferToken(rewardPool.token0, msg.sender, totalFeeCharged0);
-        _safeTransferToken(rewardPool.token1, msg.sender, totalFeeCharged1);
+        _safeTransferToken(rewardPool.token0, chargeReceiver, totalFeeCharged0);
+        _safeTransferToken(rewardPool.token1, chargeReceiver, totalFeeCharged1);
         totalFeeCharged0 = 0;
         totalFeeCharged1 = 0;
     }
