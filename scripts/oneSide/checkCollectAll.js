@@ -95,7 +95,7 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
   const mining = await Mining.attach(para.miningPoolAddr);
 
   let rewardInfos = [];

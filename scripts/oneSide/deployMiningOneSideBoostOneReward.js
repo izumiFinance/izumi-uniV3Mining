@@ -3,14 +3,15 @@ const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
-// HARDHAT_NETWORK='ethereum' \
+// HARDHAT_NETWORK='izumiTest' \
 //     node deployMiningOneSideBoostOneReward.js \
-//     'WETH9' 'iZi' 3000 \
-//     'iZi' 15 \
-//     0xee264e74A2Fd2c7A55da705b80e092f05DaE5b5D \
+//     'ETHT' 'iZiT' 3000 \
+//     'iZiT' 2 iZiT_PROVIDER \
 //     1 \
-//     13846789 14025760 \
-//     1
+//     0 200000 \
+//     1 \
+//     40
+//     0xa064411B9F927226FB4a99864a247b1ef991b04F
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -26,7 +27,7 @@ var para = {
     rewardTokenAddress: contracts[net][v[5]],
     rewardPerBlock: v[6],
 
-    rewardProvider: v[7],
+    rewardProvider: contracts[net][v[7]],
 
     lockBoostMultiplier: v[8],
 
@@ -34,6 +35,9 @@ var para = {
     endBlock: v[10],
 
     boost: v[11],
+
+    feeChargePercent: v[12],
+    chargeReceiver: v[13],
 }
 
 
@@ -74,7 +78,7 @@ async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
 
   para.rewardPerBlock = await getNumNoDecimal(para.rewardTokenAddress, para.rewardPerBlock);
 
@@ -107,7 +111,9 @@ async function main() {
     }],
     para.lockBoostMultiplier,
     iziAddr,
-    para.startBlock, para.endBlock
+    para.startBlock, para.endBlock,
+    para.feeChargePercent,
+    para.chargeReceiver,
   );
   await mining.deployed();
 

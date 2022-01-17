@@ -9,8 +9,10 @@ const BigNumber = require("bignumber.js");
 //     'iZi' 4 iZi_PROVIDER \
 //     'YIN' 0.5 YIN_PROVIDER \
 //     1 \
-//     12863 200000 \
-//     1
+//     13949414 14134556 \
+//     1 \
+//     30 \ 
+//     0xa064411B9F927226FB4a99864a247b1ef991b04F
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -40,6 +42,8 @@ var para = {
     endBlock: v[13],
 
     boost: v[14],
+    feeChargePercent: v[15],
+    chargeReceiver: v[16],
 }
 
 
@@ -80,7 +84,7 @@ async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
 
   para.rewardPerBlock0 = await getNumNoDecimal(para.rewardTokenAddress0, para.rewardPerBlock0);
   para.rewardPerBlock1 = await getNumNoDecimal(para.rewardTokenAddress1, para.rewardPerBlock1);
@@ -120,7 +124,9 @@ async function main() {
     }],
     para.lockBoostMultiplier,
     iziAddr,
-    para.startBlock, para.endBlock
+    para.startBlock, para.endBlock,
+    para.feeChargePercent,
+    para.chargeReceiver,
   );
   await mining.deployed();
 

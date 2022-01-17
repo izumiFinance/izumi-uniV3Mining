@@ -9,7 +9,7 @@ const factoryAddress = contracts.factory;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node checkEmergencyWithdraw.js \
-//     'ONESIDE_WETH9_IZI_3000_EMERGENCY_WITHDRAW' 1487
+//     'ONESIDE_WETH9_YIN_3000_EMERGENCY_WITHDRAW' 1913
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -108,7 +108,10 @@ async function main() {
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
   const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
-  const mining = await Mining.attach(para.miningPoolAddr);
+
+  console.log('addr: ', para.miningPoolAddr);
+
+  const mining = Mining.attach(para.miningPoolAddr);
 
   var uniToken, lockToken, fee, lockBoostMul, iziToken;
   [uniToken, lockToken, fee, lockBoostMul, iziToken] = await mining.getMiningContractInfo();
@@ -143,6 +146,7 @@ async function main() {
         console.log('nizi: ', ts.nIZI.div(amountNoDecimal[2]).toFixed(10));
 
         const blockNumber = await hardhat.ethers.provider.getBlockNumber();
+        
         let reward = await mining.pendingReward(id);
 
         reward = reward.map((r, i)=>{

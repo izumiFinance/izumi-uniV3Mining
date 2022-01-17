@@ -43,27 +43,32 @@ async function getNumNoDecimal(tokenAddr, num) {
   return numNoDecimal.toFixed(0);
 }
 
+
 async function getTokenStatus(mining, nftId) {
 
 
-    // uint256 vLiquidity;
-    // uint256 validVLiquidity;
-    // uint256 nIZI;
-    // uint256 lastTouchBlock;
-    var vLiquidity, validVLiquidity, nIZI, lastTouchBlock;
-  
-    [vLiquidity, validVLiquidity, nIZI, lastTouchBlock] = await mining.tokenStatus(nftId);
-    vLiquidity = vLiquidity.toString();
-    validVLiquidity = validVLiquidity.toString();
-    nIZI = nIZI.toString();
-    lastTouchBlock = lastTouchBlock.toString();
-    return {
-      vLiquidity,
-      validVLiquidity,
-      nIZI,
-      lastTouchBlock
-    };
-  }
+  // uint256 vLiquidity;
+  // uint256 validVLiquidity;
+  // uint256 nIZI;
+  // uint256 lastTouchBlock;
+  var vLiquidity, validVLiquidity, nIZI, lastTouchBlock;
+
+  [vLiquidity, validVLiquidity, nIZI, lastTouchBlock, lastTokensOwed0, lastTokensOwed1] = await mining.tokenStatus(nftId);
+  vLiquidity = vLiquidity.toString();
+  validVLiquidity = validVLiquidity.toString();
+  nIZI = nIZI.toString();
+  lastTouchBlock = lastTouchBlock.toString();
+  lastTokensOwed0 = lastTokensOwed0.toString();
+  lastTokensOwed1 = lastTokensOwed1.toString();
+  return {
+    vLiquidity,
+    validVLiquidity,
+    nIZI,
+    lastTouchBlock,
+    lastTokensOwed1,
+    lastTokensOwed0
+  };
+}
   
   async function getMiningContractInfo(mining) {
     var token0, token1, fee, rewardInfos, iziTokenAddr, rewardUpperTick, rewardLowerTick, lastTouchBlock, totalVLiquidity, startBlock, endBlock;
@@ -72,6 +77,9 @@ async function getTokenStatus(mining, nftId) {
     totalVLiquidity = totalVLiquidity.toString();
     startBlock = startBlock.toString();
     endBlock = endBlock.toString();
+
+    totalFeeCharged0 = await mining.totalFeeCharged0();
+    totalFeeCharged1 = await mining.totalFeeCharged1();
   
     var totalNIZI = await mining.totalNIZI();
     totalNIZI = totalNIZI.toString();
@@ -87,7 +95,9 @@ async function getTokenStatus(mining, nftId) {
         lastTouchBlock,
         totalVLiquidity,
         startBlock,
-        endBlock
+        endBlock,
+        totalFeeCharged0: totalFeeCharged0.toString(),
+        totalFeeCharged1: totalFeeCharged1.toString(),
     };
   }
 
@@ -131,7 +141,7 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
   var meta = await getMiningContractInfo(mining);
@@ -147,6 +157,12 @@ async function main() {
       collectTokens.push(rewardInfo.rewardToken);
   }
 
+  amountNoDecimal.push(await getNumNoDecimal(meta.token0, 1));
+  collectTokens.push(await meta.token0);
+
+  amountNoDecimal.push(await getNumNoDecimal(meta.token1, 1));
+  collectTokens.push(await meta.token1);
+
   console.log('tokens: ', collectTokens);
 
   tokenIds = [para.nftId];
@@ -155,6 +171,8 @@ async function main() {
 
   console.log('before withdraw totalnizi: ', meta.totalNIZI);
   console.log('before withdraw vliquidity: ', meta.totalVLiquidity);
+  console.log('total fee charged0: ', meta.totalFeeCharged0);
+  console.log('total fee charged1: ', meta.totalFeeCharged1);
   
     for (id of tokenIds) {
 
@@ -162,6 +180,8 @@ async function main() {
         console.log('vliquidity: ', ts.vLiquidity);
         console.log('validVliquidity: ', ts.validVLiquidity);
         console.log('nizi: ', BigNumber(ts.nIZI).div(amountNoDecimal[0]).toFixed(10));
+        console.log('lastTokensOwed0: ', ts.lastTokensOwed0);
+        console.log('lastTokensOwed1: ', ts.lastTokensOwed1);
 
         const blockNumber = await hardhat.ethers.provider.getBlockNumber();
         let reward = await mining.pendingReward(id);
@@ -194,6 +214,8 @@ async function main() {
   meta = await getMiningContractInfo(mining);
   console.log('after withdraw totalnizi: ', meta.totalNIZI);
   console.log('after withdraw vliquidity: ', meta.totalVLiquidity);
+  console.log('total fee charged0: ', meta.totalFeeCharged0);
+  console.log('total fee charged1: ', meta.totalFeeCharged1);
 }
 
 main()

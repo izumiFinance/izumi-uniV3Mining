@@ -80,6 +80,14 @@ async function main() {
   para.amount0NoDecimal = await getNumNoDecimal(token0Addr, para.amount0Decimal);
   para.amount1NoDecimal = await getNumNoDecimal(token1Addr, para.amount1Decimal);
   para.amountIZiNoDecimal = await getNumNoDecimal(tokenIZiAddr, para.amountIZiDecimal);
+/*
+a:  140000000000000020
+addLiquidity.ts:74 b:  1076984168914164900000
+addLiquidity.ts:75 izi:  0
+*/
+  para.amount0NoDecimal = '140000000000000020';
+  para.amount1NoDecimal = '1076984168914164900000';
+  para.amountIZiNoDecimal = '0';
 
   let ethAmountNoDecimal = 0;
   if (token0Addr.toUpperCase() == contracts[net].WETH9.toUpperCase()) {
@@ -105,7 +113,7 @@ async function main() {
 
   const balanceBefore = await getBalance(tokenAddrList, tester.address);
 
-  const tx = await mining.connect(tester).depositWithuniToken(para.amount0NoDecimal, para.amount1NoDecimal, para.amountIZiNoDecimal, {value: ethAmountNoDecimal});
+  const tx = await mining.connect(tester).deposit(para.amount0NoDecimal, para.amount1NoDecimal, para.amountIZiNoDecimal, {value: ethAmountNoDecimal});
 
   const balanceAfter = await getBalance(tokenAddrList, tester.address);
 

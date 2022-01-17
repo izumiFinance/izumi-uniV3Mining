@@ -9,8 +9,8 @@ const factoryAddress = contracts.factory;
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node checkCollect.js \
-//     'ONESIDE_USDC_BIT_3000' 953
+//     node checkWithdraw.js \
+//     'ONESIDE_WETH9_YIN_3000' 1905
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -108,11 +108,14 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
   const mining = await Mining.attach(para.miningPoolAddr);
 
   var uniToken, lockToken, fee, lockBoostMul, iziToken;
   [uniToken, lockToken, fee, lockBoostMul, iziToken] = await mining.getMiningContractInfo();
+
+  var totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
+  var totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
 
   var collectTokens = [uniToken, lockToken, iziToken];
   var amountNoDecimal = [
@@ -120,6 +123,9 @@ async function main() {
       await getNumNoDecimal(lockToken, 1),
       await getNumNoDecimal(iziToken, 1),
   ];
+
+  var rewardInfosLen = await mining.rewardInfosLen();
+  console.log('rewardInfosLen: ', rewardInfosLen);
 
   for (var i = 0; i < await mining.rewardInfosLen(); i ++) {
       const rewardInfo = await getRewardInfo(mining, i);
@@ -135,6 +141,9 @@ async function main() {
   tokenIds = [para.nftId];
   var originBalances = await getBalance(tester, collectTokens);
   console.log('origin balance: ', originBalances);
+
+  console.log('total fee charged0: ', totalFeeCharged0);
+  console.log('total fee charged1: ', totalFeeCharged1);
   
     for (id of tokenIds) {
 
@@ -170,6 +179,10 @@ async function main() {
     }
     
   console.log('amountNoDecimal: ', amountNoDecimal);
+  totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
+  totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
+  console.log('total fee charged0: ', totalFeeCharged0);
+  console.log('total fee charged1: ', totalFeeCharged1);
 }
 
 main()

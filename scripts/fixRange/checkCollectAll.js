@@ -9,7 +9,7 @@ const factoryAddress = contracts.factory;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node checkCollect.js \
-//     'FIXRANGE_V2_USDC_USDT_100' 1965
+//     'FIXRANGE_V2_USDC_USDT_100' 1966
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -98,7 +98,7 @@ async function main() {
             return BigNumber(r.toString()).div(amountNoDecimal[i]).toFixed(10);
         });
         console.log('reward before collect: ' , reward);
-        var tx = await mining.connect(tester).collectReward(id);
+        var tx = await mining.connect(tester).collectRewards();
         console.log('tx: ', tx);
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();

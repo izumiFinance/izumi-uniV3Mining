@@ -1,16 +1,12 @@
 const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 
-const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
-
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node modifyEndBlock.js \
-//     'FIXRANGE_USDC_USDT_100' 
+//     node modifyChargeReceiver.js \
+//     'FIXRANGE_V2_USDC_USDT_100' 
+//     0x7576BCf2700A86e8785Cfb1f9c2FF402941C9789
 //     0
-//     5000000000000000000
-//     1
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -18,9 +14,8 @@ const net = process.env.HARDHAT_NETWORK
 const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
-    rewardIdx: v[3],
-    rewardPerBlockAmount: v[4],
-    owner: Number(v[5]),
+    chargeReceiver: v[3],
+    owner: Number(v[4]),
 }
 
 async function main() {
@@ -32,10 +27,10 @@ async function main() {
   var tx;
   if (para.owner === 1) {
 
-    tx = await mining.modifyRewardPerBlock(para.rewardIdx, para.rewardPerBlockAmount);
+    tx = await mining.modifyChargeReceiver(para.chargeReceiver);
   } else {
 
-    tx = await mining.connect(tester).modifyRewardPerBlock(para.rewardIdx, para.rewardPerBlockAmount);
+    tx = await mining.connect(tester).modifyChargeReceiver(para.chargeReceiver);
   }
   console.log('tx: ', tx);
 }

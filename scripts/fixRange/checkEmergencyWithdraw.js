@@ -9,7 +9,7 @@ const factoryAddress = contracts.factory;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node checkEmergencyWithdraw.js \
-//     'FIXRANGE_USDC_USDT_100_EMERGENCY_WITHDRAW' 1465
+//     'FIXRANGE_V2_USDC_USDT_100_EMERGENCY_WITHDRAW' 1968
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -133,7 +133,7 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
   var meta = await getMiningContractInfo(mining);

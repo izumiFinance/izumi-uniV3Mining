@@ -7,8 +7,8 @@ const factoryAddress = contracts.factory;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyEndBlock.js \
-//     'ONESIDE_WETH9_IZI_3000' 
-//     10150
+//     'ONESIDE_WETH9_YIN_3000' 
+//     12959
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -24,7 +24,7 @@ async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
   await mining.modifyEndBlock(para.endBlock);

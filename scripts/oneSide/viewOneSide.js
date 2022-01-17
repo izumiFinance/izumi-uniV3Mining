@@ -3,13 +3,10 @@ const contracts = require("../deployed.js");
 const BigNumber = require('bignumber.js');
 var sleep = require('sleep'); 
 
-const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
-
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node viewOneSide.js \
-//     'ONESIDE_WETH9_IZI_3000' 1697
+//     'ONESIDE_ETHT_IZIT_3000' 1959
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -67,8 +64,8 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoost");
-  const mining = await Mining.attach(para.miningPoolAddr);
+  const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
+  const mining = Mining.attach(para.miningPoolAddr);
 
   let rewardInfos = [];
   const amountNoDecimal = [];
