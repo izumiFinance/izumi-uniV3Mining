@@ -3,7 +3,7 @@ const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
-// HARDHAT_NETWORK='izumiTest' \
+// HARDHAT_NETWORK='polygon' \
 //     node deployMiningFixRangeBoostTwoReward.js \
 //     'USDC' 'USDT' 500 \
 //     'iZi' 0.5555555555 iZi_PROVIDER \
@@ -143,7 +143,7 @@ async function main() {
 
   console.log('iziAddr: ', iziAddr);
 
-  const mining = await Mining.deploy(
+  var args = [
     {
       uniV3NFTManager: contracts[net].nftManager,
       token0: para.token0Address,
@@ -168,12 +168,18 @@ async function main() {
     para.startBlock, para.endBlock,
     para.feeChargePercent,
     para.chargeReceiver,
+  ];
+
+  console.log('args: ', args);
+
+  const mining = await Mining.deploy(
+    ...args
   );
   console.log(mining.deployTransaction);
   await mining.deployed();
   
-  await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
-  await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
+  // await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
+  // await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
 
   console.log("MiningFixRangeBoost Contract Address: " , mining.address);
 
