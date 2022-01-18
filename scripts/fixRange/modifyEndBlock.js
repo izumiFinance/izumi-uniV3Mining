@@ -1,9 +1,12 @@
 const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
+const BigNumber = require('bignumber.js');
 
-const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
+const {getWeb3} = require('../libraries/getWeb3');
+const {getContractABI} = require('../libraries/getContractJson');
 
+const secret = require('../../.secret.js');
+const pk = secret.pk;
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyEndBlock.js \
@@ -22,19 +25,33 @@ const para = {
     owner: Number(v[4])
 }
 
+const web3 = getWeb3();
+const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostV2.sol/MiningFixRangeBoostV2.json');
+
 async function main() {
     
-  const [deployer,tester] = await hardhat.ethers.getSigners();
+  const mining = new web3.eth.Contract(miningABI, para.miningPoolAddr);
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoostV2");
-  const mining = Mining.attach(para.miningPoolAddr);
-  let tx;
-  if (para.owner === 1) {
-    tx = await mining.modifyEndBlock(para.endBlock);
-  } else {
-    tx = await mining.connect(tester).modifyEndBlock(para.endBlock);
-  }
-  console.log(tx);
+  console.log('addr: ', para.miningPoolAddr);
+
+  const owner = await mining.methods.owner().call();
+  console.log('owner: ', owner);
+  
+  const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
+  const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
+  console.log('gas limit: ', gasLimit);
+  const signedTx = await web3.eth.accounts.signTransaction(
+      {
+          // nonce: 0,
+          to: para.miningPoolAddr,
+          data:txData,
+          gas: BigNumber(gasLimit * 1.1).toFixed(0, 2),
+      }, 
+      pk
+  );
+  // nonce += 1;
+  const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+  console.log('tx: ', tx);
 }
 
 main()

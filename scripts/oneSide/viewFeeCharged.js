@@ -16,7 +16,6 @@ const net = process.env.HARDHAT_NETWORK
 const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
-    nftId: v[3],
     rpc: config.networks[net].url,
 }
 
@@ -40,6 +39,7 @@ async function main() {
 
   console.log('total fee charged0: ', (await mining.totalFeeCharged0()).toString());
   console.log('total fee charged1: ', (await mining.totalFeeCharged1()).toString());
+  console.log('fee charge receiver: ', (await mining.chargeReceiver()));
 }
 
 main()

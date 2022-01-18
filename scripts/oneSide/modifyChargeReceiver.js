@@ -8,7 +8,6 @@ const factoryAddress = contracts.factory;
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyProvider.js \
 //     'ONESIDE_WETH9_IZI_3000' 
-//     0
 //     0xF18Cd1621574e1E123D694FCdCc2EB8e8038a2d0
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -17,8 +16,7 @@ const net = process.env.HARDHAT_NETWORK
 const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
-    rewardIdx: v[3],
-    provider: v[4],
+    receiver: v[3],
 }
 
 async function getRewardInfo(mining, idx) {
@@ -44,10 +42,7 @@ async function main() {
   const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
-  var rewardInfo = await getRewardInfo(mining, para.rewardIdx);
-  console.log('rewardInfo: ', rewardInfo);
-
-  tx = await mining.modifyProvider(para.rewardIdx, para.provider);
+  tx = await mining.modifyChargeReceiver(para.receiver);
   console.log('tx: ', tx);
 }
 

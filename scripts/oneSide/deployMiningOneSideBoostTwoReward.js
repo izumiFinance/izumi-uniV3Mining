@@ -12,7 +12,7 @@ const BigNumber = require("bignumber.js");
 //     13949414 14134556 \
 //     1 \
 //     30 \ 
-//     0xa064411B9F927226FB4a99864a247b1ef991b04F
+//     CHARGE_RECEIVER
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -43,7 +43,7 @@ var para = {
 
     boost: v[14],
     feeChargePercent: v[15],
-    chargeReceiver: v[16],
+    chargeReceiver: contracts[net][v[16]],
 }
 
 
@@ -103,7 +103,7 @@ async function main() {
 
   console.log('iziAddr: ', iziAddr);
 
-  const mining = await Mining.deploy(
+  const args = [
     {
       uniV3NFTManager: contracts[net].nftManager,
       uniTokenAddr: para.tokenUniAddress,
@@ -127,6 +127,11 @@ async function main() {
     para.startBlock, para.endBlock,
     para.feeChargePercent,
     para.chargeReceiver,
+  ];
+  console.log('args: ', args);
+
+  const mining = await Mining.deploy(
+    ...args
   );
   await mining.deployed();
 
