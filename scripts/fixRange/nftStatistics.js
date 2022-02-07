@@ -55,7 +55,7 @@ function getSqrtRatio(n) {
   if (sqrtRatioMap[n] != undefined) {
     return sqrtRatioMap[n];
   }
-  sqrtRatioMap[n] = BigNumber(1.0001).pow(n).sqrt();
+  sqrtRatioMap[n] = BigNumber(1.0001 ** n).sqrt();
   return sqrtRatioMap[n];
 }
 
@@ -144,19 +144,25 @@ async function main() {
       const tickLower = Math.max(rewardLowerTick, Number(nftDetails[i].tickLower));
       const tickUpper = Math.min(rewardUpperTick, Number(nftDetails[i].tickUpper));
       console.log(tickLower, tickUpper);
+      console.log(Number(nftDetails[i].tickLower), Number(nftDetails[i].tickUpper));
       const [amount0, amount1] = getAmount(nftDetails[i].liquidity, tickLower, tickUpper, sqrtPrice);
+      console.log('liquidity: ', nftDetails[i].liquidity);
+      const [totalAmount0, totalAmount1] = getAmount(nftDetails[i].liquidity, Number(nftDetails[i].tickLower), Number(nftDetails[i].tickUpper), sqrtPrice);
       const amount0Decimal = amount0.div(10**token0Decimal).toFixed(10);
       const amount1Decimal = amount1.div(10**token1Decimal).toFixed(10);
+
+      const totalAmount0Decimal = totalAmount0.div(10 ** token0Decimal).toFixed(10);
+      const totalAmount1Decimal = totalAmount1.div(10 ** token1Decimal).toFixed(10);
       // console.log(amount0.toFixed(10), amount0Decimal, amount1.toFixed(10), amount1Decimal);
       // console.log(nftId, nftDetails[i].liquidity, nftDetails[i].tickLower, nftDetails[i].tickUpper);
       // console.log('--------------------')
       // list.push([owner, nftId, ])
-      list.push([owner, amount0Decimal, amount1Decimal]);
+      list.push([owner, amount0Decimal, amount1Decimal, totalAmount0Decimal, totalAmount1Decimal]);
     }
     
     let data = '';
     for (const item of list) {
-      data = data + String(item[0]) + ' ' + String(item[1]) + ' ' + String(item[2]) + '\n';
+      data = data + String(item[0]) + ' ' + String(item[1]) + ' ' + String(item[2]) + ' ' + String(item[3]) + ' ' + String(item[4]) + '\n';
     }
     
     const fs = require('fs');
