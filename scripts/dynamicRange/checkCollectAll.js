@@ -2,12 +2,14 @@ const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
 const BigNumber = require('bignumber.js');
 var sleep = require('sleep'); 
-const config = require("../../hardhat.config.js");
+
+const factoryJson = require(contracts.factoryJson);
+const factoryAddress = contracts.factory;
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node checkCollect.js \
-//     'DYNRANGE_WETH9_IZI_3000' 1868
+//     'FIXRANGE_V2_USDC_USDT_100' 1966
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -17,7 +19,6 @@ const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
     nftId: v[3],
-    rpc: config.networks[net].url,
 }
 
 async function attachToken(address) {
@@ -65,29 +66,9 @@ function bigNumberListToStr(b) {
     c = b.map((a)=>a.toFixed(0));
     return c;
 }
-
-async function getMeta(mining) {
-    var uniToken, lockToken, fee, lockBoostMul, iziToken, lastTouchBock, totalVLiquidity, totalLock, totalNIZI, startBlock, endBlock;
-    [uniToken, lockToken, fee, lockBoostMul, iziToken, lastTouchBock, totalVLiquidity, totalLock, totalNIZI, startBlock, endBlock] = await mining.getMiningContractInfo();
-    return {
-      totalVLiquidity: totalVLiquidity.toString(),
-      totalNIZI: totalNIZI.toString(),
-      startBlock: startBlock.toString(),
-      endBlock: endBlock.toString(),
-      totalLock: totalLock.toString()
-    }
-  }
 async function main() {
-
-  // var nftManager = new web3.eth.Contract(managerJson.abi, contracts[net].nftManager);
-  // console.log('nftmanager: ',contracts[net].nftManager );
-  // uniCollect = await getUniCollect(nftManager, para.nftId);
-
-  // console.log('uniCollect: ', uniCollect);
-  // return;
     
   const [deployer, tester] = await hardhat.ethers.getSigners();
-  
   console.log('deployer: ', deployer.address);
   console.log('tester: ', tester.address);
 
@@ -95,9 +76,6 @@ async function main() {
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
   const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
-
-  const meta = await getMeta(mining);
-  console.log('meta: ', meta);
 
   let rewardInfos = [];
   const amountNoDecimal = [];
@@ -120,7 +98,7 @@ async function main() {
             return BigNumber(r.toString()).div(amountNoDecimal[i]).toFixed(10);
         });
         console.log('reward before collect: ' , reward);
-        var tx = await mining.connect(tester).collect(id);
+        var tx = await mining.connect(tester).collectAllTokens();
         console.log('tx: ', tx);
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();

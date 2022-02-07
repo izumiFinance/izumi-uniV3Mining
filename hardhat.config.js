@@ -51,6 +51,8 @@ module.exports = {
       accounts: [sk]
     },
     polygon: {
+      gas: 8000000,
+      gasPrice: 290000000000,
       url: 'https://rpc-mainnet.maticvigil.com',
       accounts: [sk]
     },

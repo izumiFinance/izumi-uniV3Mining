@@ -14,11 +14,11 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../libraries/UniswapOracle.sol";
 import "../libraries/UniswapCallingParams.sol";
 
-import "../base/MiningBase.sol";
+import "../base/MiningBaseVeiZi.sol";
 
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningDynamicRangeBoost is MiningBase {
+contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -44,7 +44,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         uint256 nftId;
         uint256 vLiquidity;
         uint256 validVLiquidity;
-        uint256 nIZI;
+        uint256 veiZi;
+        uint256 validVeiZi;
+        uint256 veStakingId;
         uint256 lastTouchBlock;
         uint256 amount0;
         uint256 amount1;
@@ -61,7 +63,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         t = BaseTokenStatus({
             vLiquidity: ts.vLiquidity,
             validVLiquidity: ts.validVLiquidity,
-            nIZI: ts.nIZI,
+            veiZi: ts.veiZi,
+            validVeiZi: ts.validVeiZi,
+            veStakingId: ts.veStakingId,
             lastTouchAccRewardPerShare: ts.lastTouchAccRewardPerShare
         });
     }
@@ -75,12 +79,20 @@ contract MiningDynamicRangeBoost is MiningBase {
     constructor(
         PoolParams memory poolParams,
         RewardInfo[] memory _rewardInfos,
-        address iziTokenAddr,
+        address _veiZiAddress,
         uint256 _startBlock,
         uint256 _endBlock,
         uint24 feeChargePercent,
         address _chargeReceiver
-    ) MiningBase(feeChargePercent, poolParams.uniV3NFTManager, poolParams.token0, poolParams.token1, poolParams.fee, _chargeReceiver) {
+    ) MiningBaseVeiZi(
+        feeChargePercent, 
+        poolParams.uniV3NFTManager, 
+        _veiZiAddress,
+        poolParams.token0, 
+        poolParams.token1, 
+        poolParams.fee, 
+        _chargeReceiver
+    ) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
 
         require(rewardPool.token0 < rewardPool.token1, "TOKEN0 < TOKEN1 NOT MATCH");
@@ -110,16 +122,12 @@ contract MiningDynamicRangeBoost is MiningBase {
             rewardInfos[i].accRewardPerShare = 0;
         }
 
-        // iziTokenAddr == 0 means not boost
-        iziToken = IERC20(iziTokenAddr);
-
         startBlock = _startBlock;
         endBlock = _endBlock;
 
         lastTouchBlock = startBlock;
 
         totalVLiquidity = 0;
-        totalNIZI = 0;
 
         totalToken0 = 0;
         totalToken1 = 0;
@@ -133,12 +141,12 @@ contract MiningDynamicRangeBoost is MiningBase {
             address token0_,
             address token1_,
             uint24 fee_,
-            address iziTokenAddr_,
+            address veiZiAddress_,
             uint256 lastTouchBlock_,
             uint256 totalVLiquidity_,
             uint256 totalToken0_,
             uint256 totalToken1_,
-            uint256 totalNIZI_,
+            uint256 totalValidVeiZi_,
             uint256 startBlock_,
             uint256 endBlock_
         )
@@ -147,12 +155,12 @@ contract MiningDynamicRangeBoost is MiningBase {
             rewardPool.token0,
             rewardPool.token1,
             rewardPool.fee,
-            address(iziToken),
+            veiZiAddress_,
             lastTouchBlock,
             totalVLiquidity,
             totalToken0,
             totalToken1,
-            totalNIZI,
+            totalValidVeiZi,
             startBlock,
             endBlock
         );
@@ -175,31 +183,23 @@ contract MiningDynamicRangeBoost is MiningBase {
     function _updateTokenStatus(
         uint256 tokenId,
         uint256 validVLiquidity,
-        uint256 nIZI
+        uint256 veiZi,
+        uint256 validVeiZi,
+        uint256 veStakingId
     ) internal override {
         TokenStatus storage t = tokenStatus[tokenId];
 
         // when not boost, validVL == vL
         t.validVLiquidity = validVLiquidity;
-        t.nIZI = nIZI;
+        t.veiZi = veiZi;
+        t.validVeiZi = validVeiZi;
+        t.veStakingId = veStakingId;
 
         t.lastTouchBlock = lastTouchBlock;
         // prevent double collect
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
-    }
-
-    function _computeValidVLiquidity(uint256 vLiquidity, uint256 nIZI)
-        internal override
-        view
-        returns (uint256)
-    {
-        if (totalNIZI == 0) {
-            return vLiquidity;
-        }
-        uint256 iziVLiquidity = (vLiquidity * 4 + (totalVLiquidity * nIZI * 6) / totalNIZI) / 10;
-        return Math.min(iziVLiquidity, vLiquidity);
     }
 
     /// @dev compute tick range converted from [oraclePrice / 2, oraclePrice * 2]
@@ -287,7 +287,6 @@ contract MiningDynamicRangeBoost is MiningBase {
     function deposit(
         uint256 amount0Desired,
         uint256 amount1Desired,
-        uint256 numIZI,
         int24 stdTick
     ) external payable nonReentrant {
         _recvTokenFromUser(rewardPool.token0, msg.sender, amount0Desired);
@@ -333,24 +332,24 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
-        newTokenStatus.nIZI = numIZI;
-        if (address(iziToken) == address(0)) {
+        if (address(veiZiAddress) == address(0)) {
             // boost is not enabled
-            newTokenStatus.nIZI = 0;
+            newTokenStatus.veiZi = 0;
+            newTokenStatus.validVeiZi = 0;
+            newTokenStatus.veStakingId = 0;
+            // no need to update totalValidVeiZi
+        } else {
+            (, newTokenStatus.veStakingId, newTokenStatus.veiZi) = IVeiZi(veiZiAddress).stakingInfo(msg.sender);
+            newTokenStatus.validVeiZi = _updateTotalAndComputeValidVeiZi(0, newTokenStatus.veiZi, newTokenStatus.vLiquidity);
         }
-        _updateNIZI(newTokenStatus.nIZI, true);
         newTokenStatus.validVLiquidity = _computeValidVLiquidity(
             newTokenStatus.vLiquidity,
-            newTokenStatus.nIZI
+            newTokenStatus.veiZi
         );
-        require(newTokenStatus.nIZI < FixedPoints.Q128 / 6, "NIZI O");
+        require(newTokenStatus.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
         _newTokenStatus(newTokenStatus);
-        if (newTokenStatus.nIZI > 0) {
-            // lock izi in this contract
-            _recvTokenFromUser(address(iziToken), msg.sender, newTokenStatus.nIZI);
-        }
 
-        emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.nIZI);
+        emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.veiZi);
     }
 
     /// @notice Widthdraw a single position.
@@ -364,16 +363,12 @@ contract MiningDynamicRangeBoost is MiningBase {
         } else {
             _collectReward(tokenId);
         }
-        TokenStatus storage t = tokenStatus[tokenId];
+        TokenStatus memory t = tokenStatus[tokenId];
         totalToken0 -= t.amount0;
         totalToken1 -= t.amount1;
 
         _updateVLiquidity(t.vLiquidity, false);
-        if (t.nIZI > 0) {
-            _updateNIZI(t.nIZI, false);
-            // refund iZi to user
-            iziToken.safeTransfer(msg.sender, t.nIZI);
-        }
+        totalValidVeiZi -= t.validVeiZi;
 
         // first charge and send remain fee from uniswap to user
         (uint256 amount0, uint256 amount1) = INonfungiblePositionManager(
@@ -449,12 +444,6 @@ contract MiningDynamicRangeBoost is MiningBase {
             tokenId
         );
 
-        TokenStatus storage t = tokenStatus[tokenId];
-        if (t.nIZI > 0) {
-            // we should ensure nft refund to user
-            // omit the case when transfer() returns false unexpectedly
-            iziToken.transfer(owner, t.nIZI);
-        }
         // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
     }

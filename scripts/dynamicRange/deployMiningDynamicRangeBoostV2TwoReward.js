@@ -4,12 +4,15 @@ const BigNumber = require("bignumber.js");
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node deployMiningDynamicRangeBoostOneReward.js \
-//     'iZi' 'WETH9' 3000 \
-//     'iZi' 15 \
-//     0x7576BCf2700A86e8785Cfb1f9c2FF402941C9789 \
-//      12800 200000 \
-//      1
+//     node deployMiningDynamicRangeBoostV2TwoReward.js \
+//     'DDAO' 'WETH9' 3000 \
+//     'iZi' 0.462962962 iZi_PROVIDER \
+//     'DDAO' 0.09259259259 DDAO_PROVIDER \
+//      14409 20000 \
+//      0.25 4 \
+//      1 \
+//      40 \
+//      CHARGE_RECEIVER 
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -21,15 +24,27 @@ var para = {
     token1Address: contracts[net][v[3]],
     fee: v[4],
 
-    rewardTokenSymbol: v[5],
-    rewardTokenAddress: contracts[net][v[5]],
-    rewardPerBlock: v[6],
-    rewardProvider: v[7],
+    rewardTokenSymbol0: v[5],
+    rewardTokenAddress0: contracts[net][v[5]],
+    rewardPerBlock0: v[6],
+    provider0Symbol: v[7],
+    provider0: contracts[net][v[7]],
 
-    startBlock: v[8],
-    endBlock: v[9],
+    rewardTokenSymbol1: v[8],
+    rewardTokenAddress1: contracts[net][v[8]],
+    rewardPerBlock1: v[9],
+    provider1Symbol: v[10],
+    provider1: contracts[net][v[10]],
 
-    boost: v[10],
+    startBlock: v[11],
+    endBlock: v[12],
+
+    pcLeftScale: v[13],
+    pcRightScale: v[14],
+
+    boost: v[15],
+    feeChargePercent: v[16],
+    chargeReceiver: contracts[net][v[17]],
 }
 
 
@@ -80,10 +95,11 @@ async function main() {
     para.token1Symbol = tmp;
   }
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoostV2");
 
-  para.rewardPerBlock = await getNumNoDecimal(para.rewardTokenAddress, para.rewardPerBlock);
-  console.log("Deploy MiningFixRangeBoost Contract: %s/%s", para.token0Symbol,  para.token1Symbol);
+  para.rewardPerBlock0 = await getNumNoDecimal(para.rewardTokenAddress0, para.rewardPerBlock0);
+  para.rewardPerBlock1 = await getNumNoDecimal(para.rewardTokenAddress1, para.rewardPerBlock1);
+  console.log("Deploy MiningDynamicRangeBoostV2 Contract: %s/%s", para.token0Symbol,  para.token1Symbol);
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
 
@@ -100,6 +116,12 @@ async function main() {
 
   console.log('iziAddr: ', iziAddr);
 
+  tickRangeLeft = Math.round(Math.log(1.0 / Number(para.pcLeftScale)) / Math.log(1.0001));
+  tickRangeRight = Math.round(Math.log(para.pcRightScale) / Math.log(1.0001));
+
+  console.log('tick range left: ', tickRangeLeft);
+  console.log('tick range right: ', tickRangeRight);
+
   const mining = await Mining.deploy(
       {
         uniV3NFTManager: contracts[net].nftManager,
@@ -108,13 +130,23 @@ async function main() {
         fee: para.fee
       },
     [{
-      rewardToken: para.rewardTokenAddress,
-      provider: para.rewardProvider,
+      rewardToken: para.rewardTokenAddress0,
+      provider: para.provider0,
       accRewardPerShare: 0,
-      rewardPerBlock: para.rewardPerBlock,
+      rewardPerBlock: para.rewardPerBlock0,
+    },
+    {
+      rewardToken: para.rewardTokenAddress1,
+      provider: para.provider1,
+      accRewardPerShare: 0,
+      rewardPerBlock: para.rewardPerBlock1,
     }],
     iziAddr,
-    para.startBlock, para.endBlock
+    para.startBlock, para.endBlock,
+    para.feeChargePercent,
+    para.chargeReceiver,
+    tickRangeLeft,
+    tickRangeRight
   );
   await mining.deployed();
   

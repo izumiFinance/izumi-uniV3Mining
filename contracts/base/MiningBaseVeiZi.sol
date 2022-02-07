@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../libraries/FixedPoints.sol";
 import "../libraries/Math.sol";
 import "../uniswap/interfaces.sol";
+import "../veiZi/interfaces.sol";
 import "../multicall.sol";
 
 /// @title Interface for WETH9
@@ -25,7 +26,7 @@ interface IWETH9 is IERC20 {
     function withdraw(uint256) external;
 }
 
-abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
+abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
 
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -55,13 +56,10 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @dev The inverse mapping of owners.
     mapping(address => EnumerableSet.UintSet) internal tokenIds;
 
-    /// @dev token to lock, 0 for not boost
-    IERC20 public iziToken;
-    /// @dev current total nIZI.
-    uint256 public totalNIZI;
-
     /// @notice Current total virtual liquidity.
     uint256 public totalVLiquidity;
+
+    uint256 public totalValidVeiZi;
 
     /// @notice (1 - feeRemainPercent/100) is charging rate of uniswap fee
     uint24 public feeRemainPercent;
@@ -82,11 +80,14 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
 
     address public chargeReceiver;
 
+    /// @notice address of veiZi contract, address(0) for no boost
+    address public veiZiAddress;
+
     /// @notice emit if user successfully deposit
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
-    /// @param nIZI amount of boosted iZi
-    event Deposit(address indexed user, uint256 tokenId, uint256 nIZI);
+    /// @param veiZi amount of boosted veiZi
+    event Deposit(address indexed user, uint256 tokenId, uint256 veiZi);
     /// @notice emit if user successfully withdraw
     /// @param user user
     /// @param tokenId id of mining (same as uniswap nft token id)
@@ -121,7 +122,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     }
 
     constructor(
-        uint24 _feeChargePercent, address _uniV3NFTManager, address tokenA, address tokenB, uint24 fee, address _chargeReceiver
+        uint24 _feeChargePercent, address _uniV3NFTManager, address _veiZiAddress, address tokenA, address tokenB, uint24 fee, address _chargeReceiver
     ) {
         require(_feeChargePercent <= 100, "charge percent <= 100");
         feeRemainPercent = 100 - _feeChargePercent;
@@ -129,7 +130,10 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         weth = INonfungiblePositionManager(_uniV3NFTManager).WETH9();
         // receiver to receive charged uniswap fee
         chargeReceiver = _chargeReceiver;
+        veiZiAddress = _veiZiAddress;
         _setRewardPool(tokenA, tokenB, fee);
+
+        totalValidVeiZi = 10; // start totalValidVeiZi cannot be 0, otherwise all validVeiZi will be 0
     }
 
     /// @notice Transfers ETH to the recipient address
@@ -166,17 +170,6 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         require(totalVLiquidity <= FixedPoints.Q128 * 3, "TOO MUCH LIQUIDITY STAKED");
     }
 
-    /// @notice Update reward variables to be up-to-date.
-    /// @param nIZI amount of boosted iZi to add or minus
-    /// @param isAdd add or minus
-    function _updateNIZI(uint256 nIZI, bool isAdd) internal {
-        if (isAdd) {
-            totalNIZI = totalNIZI + nIZI;
-        } else {
-            totalNIZI = totalNIZI - nIZI;
-        }
-    }
-
     /// @notice Update the global status.
     function _updateGlobalStatus() internal {
         if (block.number <= lastTouchBlock) {
@@ -192,7 +185,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            // tokenReward < 2^25 * 2^64 * 2^10, 15 years, 1000 r/block
+            // tokenReward < 2^25 * 2^64 * 2*10, 15 years, 1000 r/block
             uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
             // tokenReward * Q128 < 2^(25 + 64 + 10 + 128)
             rewardInfos[i].accRewardPerShare = rewardInfos[i].accRewardPerShare + ((tokenReward * FixedPoints.Q128) / totalVLiquidity);
@@ -200,29 +193,27 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         lastTouchBlock = currBlockNumber;
     }
 
-    /// @notice compute validVLiquidity
-    /// @param vLiquidity origin vLiquidity
-    /// @param nIZI amount of boosted iZi
-    function _computeValidVLiquidity(uint256 vLiquidity, uint256 nIZI)
-        internal virtual
-        view
-        returns (uint256);
-
     /// @notice update a token status when touched
     /// @param tokenId id of TokenStatus obj in sub-contracts (same with uniswap nft id)
     /// @param validVLiquidity validVLiquidity, can be acquired by _computeValidVLiquidity(...)
-    /// @param nIZI latest amount of iZi boost
+    /// @param veiZi user's veiZi
+    /// @param validVeiZi user's validVeiZi
+    /// @param veStakingId user's staking id in veiZi
     function _updateTokenStatus(
         uint256 tokenId,
         uint256 validVLiquidity,
-        uint256 nIZI
+        uint256 veiZi,
+        uint256 validVeiZi,
+        uint256 veStakingId
     ) internal virtual;
 
 
     struct BaseTokenStatus {
         uint256 vLiquidity;
         uint256 validVLiquidity;
-        uint256 nIZI;
+        uint256 veiZi;
+        uint256 veStakingId;
+        uint256 validVeiZi;
         uint256[] lastTouchAccRewardPerShare;
     }
 
@@ -231,37 +222,79 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
     /// @return t contains base infomation (uint256 vLiquidity, uint256 validVLiquidity, uint256 nIZI, uint256[] lastTouchAccRewardPerShare)
     function getBaseTokenStatus(uint256 tokenId) internal virtual view returns(BaseTokenStatus memory t);
 
-    /// @notice deposit iZi to an nft token
+    struct BoostInfo {
+        uint256 oldValidVLiquidity;
+        uint256 veStakingId;
+        uint256 veiZi;
+    }
+
+    function _checkDoubleSpendingWithBoostInfo(BaseTokenStatus memory tokenStatus, address user) internal view returns(BoostInfo memory boostInfo) {
+        if (veiZiAddress == address(0)) {
+            boostInfo.veStakingId = 0;
+            boostInfo.veiZi = 0;
+            boostInfo.oldValidVLiquidity = tokenStatus.validVLiquidity;
+        } else {
+            (, boostInfo.veStakingId, boostInfo.veiZi) = IVeiZi(veiZiAddress).stakingInfo(user);
+            if (tokenStatus.veStakingId == 0) {
+                // no boosting, return origin validVLiquidity
+                boostInfo.oldValidVLiquidity = tokenStatus.validVLiquidity;
+            } else if (boostInfo.veStakingId != tokenStatus.veStakingId) {
+                // double spending
+                boostInfo.oldValidVLiquidity = tokenStatus.vLiquidity * 4 / 10;
+            } else {
+                // we are sure that veiZi >= tokenStatus.veiZi now
+                boostInfo.oldValidVLiquidity = tokenStatus.validVLiquidity;
+            }
+        }
+    }
+
+    /// @notice collect farming reward and update validVLiquidity
     /// @param tokenId nft already deposited
-    /// @param deltaNIZI amount of izi to deposit
-    function depositIZI(uint256 tokenId, uint256 deltaNIZI)
+    function update(uint256 tokenId)
         external
         nonReentrant
     {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        require(address(iziToken) != address(0), "NOT BOOST");
-        require(deltaNIZI > 0, "DEPOSIT IZI MUST BE POSITIVE");
+        require(address(veiZiAddress) != address(0), "NOT BOOST");
         _collectReward(tokenId);
-        BaseTokenStatus memory t = getBaseTokenStatus(tokenId);
-        _updateNIZI(deltaNIZI, true);
-        uint256 nIZI = t.nIZI + deltaNIZI;
-        // update validVLiquidity
-        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, nIZI);
-        _updateTokenStatus(tokenId, validVLiquidity, nIZI);
+    }
 
-        // transfer iZi from user
-        iziToken.safeTransferFrom(msg.sender, address(this), deltaNIZI);
+    /// @notice compute validVeiZi and update totalValidVeiZi, this function must be called after totalVLiquidity updated
+    /// @dev totalValidVeiZi will be updated
+    /// @param originValidVeiZi origin validVeiZi, 0 if newly deposit
+    /// @param veiZi veiZi of this user queried from veiZi contract
+    /// @param vLiquidity vLiquidity of mining
+    /// @return validVeiZi computed validVeiZi for this mining
+    function _updateTotalAndComputeValidVeiZi(uint256 originValidVeiZi, uint256 veiZi, uint256 vLiquidity) internal returns(uint256 validVeiZi) {
+        totalValidVeiZi -= originValidVeiZi;
+        // note vLiquidity < Q128
+        validVeiZi = Math.min(veiZi, 2 * totalValidVeiZi * vLiquidity / totalVLiquidity);
+        totalValidVeiZi += validVeiZi;
+    }
+
+    /// @notice compute validVLiquidity
+    /// @param vLiquidity origin vLiquidity
+    /// @param veiZi amount of user's veiZi
+    function _computeValidVLiquidity(uint256 vLiquidity, uint256 veiZi) internal virtual view returns (uint256 validVLiquidity) {
+        if (totalValidVeiZi == 0) {
+            validVLiquidity = vLiquidity;
+        } else {
+            uint256 iZiVLiquidity = vLiquidity * 4 / 10 + totalVLiquidity * veiZi / totalValidVeiZi * 6 / 10;
+            validVLiquidity = Math.min(iZiVLiquidity, vLiquidity);
+        }
     }
 
     /// @notice Collect pending reward for a single position. can be called by sub-contracts
     /// @param tokenId The related position id.
     function _collectReward(uint256 tokenId) internal {
         BaseTokenStatus memory t = getBaseTokenStatus(tokenId);
+        
+        BoostInfo memory boostInfo = _checkDoubleSpendingWithBoostInfo(t, msg.sender);
 
         _updateGlobalStatus();
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             // multiplied by Q128 before
-            uint256 _reward = (t.validVLiquidity * (rewardInfos[i].accRewardPerShare - t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
+            uint256 _reward = (boostInfo.oldValidVLiquidity * (rewardInfos[i].accRewardPerShare - t.lastTouchAccRewardPerShare[i])) / FixedPoints.Q128;
             if (_reward > 0) {
                 IERC20(rewardInfos[i].rewardToken).safeTransferFrom(
                     rewardInfos[i].provider,
@@ -277,9 +310,10 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
             );
         }
 
+        t.validVeiZi = _updateTotalAndComputeValidVeiZi(t.validVeiZi, boostInfo.veiZi, t.vLiquidity);
         // update validVLiquidity
-        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, t.nIZI);
-        _updateTokenStatus(tokenId, validVLiquidity, t.nIZI);
+        uint256 validVLiquidity = _computeValidVLiquidity(t.vLiquidity, boostInfo.veiZi);
+        _updateTokenStatus(tokenId, validVLiquidity, boostInfo.veiZi, t.validVeiZi, boostInfo.veStakingId);
     }
 
     /// @notice View function to get position ids staked here for an user.
