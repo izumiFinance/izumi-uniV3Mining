@@ -18,7 +18,7 @@ import "../base/MiningBaseVeiZi.sol";
 
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningDynamicRangeBoost is MiningBaseVeiZi {
+contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;

@@ -192,7 +192,7 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         }
 
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            // tokenReward < 2^25 * 2^64 * 2*10, 15 years, 1000 r/block
+            // tokenReward < 2^25 * 2^64 * 2^10, 15 years, 1000 r/block
             uint256 tokenReward = (currBlockNumber - lastTouchBlock) * rewardInfos[i].rewardPerBlock;
             // tokenReward * Q128 < 2^(25 + 64 + 10 + 128)
             rewardInfos[i].accRewardPerShare = rewardInfos[i].accRewardPerShare + ((tokenReward * FixedPoints.Q128) / totalVLiquidity);

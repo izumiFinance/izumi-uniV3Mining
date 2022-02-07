@@ -18,7 +18,7 @@ import "../base/MiningBase.sol";
 
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningDynamicRangeBoost is MiningBase {
+contract MiningDynamicRangeBoostV2 is MiningBase {
     // using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -27,6 +27,9 @@ contract MiningDynamicRangeBoost is MiningBase {
 
     int24 internal constant TICK_MAX = 500000;
     int24 internal constant TICK_MIN = -500000;
+
+    int24 public tickRangeLeft;
+    int24 public tickRangeRight;
 
     bool public token0IsETH;
     bool public token1IsETH;
@@ -43,6 +46,7 @@ contract MiningDynamicRangeBoost is MiningBase {
     struct TokenStatus {
         uint256 nftId;
         uint256 vLiquidity;
+        uint256 uniLiquidity;
         uint256 validVLiquidity;
         uint256 nIZI;
         uint256 lastTouchBlock;
@@ -79,7 +83,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         uint256 _startBlock,
         uint256 _endBlock,
         uint24 feeChargePercent,
-        address _chargeReceiver
+        address _chargeReceiver,
+        int24 _tickRangeLeft,
+        int24 _tickRangeRight
     ) MiningBase(feeChargePercent, poolParams.uniV3NFTManager, poolParams.token0, poolParams.token1, poolParams.fee, _chargeReceiver) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
 
@@ -123,6 +129,9 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         totalToken0 = 0;
         totalToken1 = 0;
+
+        tickRangeLeft = _tickRangeLeft;
+        tickRangeRight = _tickRangeRight;
     }
 
     /// @notice Get the overall info for the mining contract.
@@ -220,9 +229,9 @@ contract MiningDynamicRangeBoost is MiningBase {
         require(delta < 2500, "TICK BIAS");
         // tickSpacing != 0 is ensured before deploy this contract
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(rewardPool.fee);
-        // 1.0001^6932 = 2
-        tickLeft = Math.max(avgTick - 6932, TICK_MIN);
-        tickRight = Math.min(avgTick + 6932, TICK_MAX);
+
+        tickLeft = Math.max(avgTick - tickRangeLeft, TICK_MIN);
+        tickRight = Math.min(avgTick + tickRangeRight, TICK_MAX);
         // round down to times of tickSpacing
         tickLeft = Math.tickFloor(tickLeft, tickSpacing);
         // round up to times of tickSpacing
@@ -304,12 +313,16 @@ contract MiningDynamicRangeBoost is MiningBase {
         uint256 actualAmount1;
         (
             newTokenStatus.nftId,
-            newTokenStatus.vLiquidity,
+            newTokenStatus.uniLiquidity,
             actualAmount0,
             actualAmount1
         ) = INonfungiblePositionManager(uniV3NFTManager).mint{
             value: msg.value
         }(uniParams);
+
+        require(newTokenStatus.uniLiquidity > 1e7, "liquidity too small!");
+        newTokenStatus.vLiquidity = newTokenStatus.uniLiquidity / 1e6;
+
         totalToken0 += actualAmount0;
         totalToken1 += actualAmount1;
         newTokenStatus.amount0 = actualAmount0;
@@ -390,7 +403,7 @@ contract MiningDynamicRangeBoost is MiningBase {
 
         // then decrease and collect from uniswap
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.uniLiquidity), type(uint256).max)
         );
         (amount0, amount1) = INonfungiblePositionManager(
             uniV3NFTManager
