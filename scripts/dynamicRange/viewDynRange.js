@@ -63,6 +63,8 @@ async function getMeta(mining) {
     token0,
     token1,
     fee,
+    totalToken0: totalToken0.toString(),
+    totalToken1: totalToken1.toString(),
     totalVLiquidity: totalVLiquidity.toString(),
     totalNIZI: totalNIZI.toString(),
     endBlock: endBlock.toString(),
@@ -78,11 +80,12 @@ async function getTokenStatus(mining, nftId) {
         uint256 amount0;
         uint256 amount1;
     */
-  var nid, vLiquidity, validVLiquidity, nIZI, lastTouchBlock, amount0, amount1;
-  [nid, vLiquidity, validVLiquidity, nIZI, lastTouchBlock, amount0, amount1] = await mining.tokenStatus(nftId);
+  var nid, vLiquidity, uniLiquidity, validVLiquidity, nIZI, lastTouchBlock, amount0, amount1;
+  [nid, vLiquidity, uniLiquidity, validVLiquidity, nIZI, lastTouchBlock, amount0, amount1] = await mining.tokenStatus(nftId);
   return {
     nftId: nid.toString(),
     vLiquidity: vLiquidity.toString(),
+    uniLiquidity: uniLiquidity.toString(),
     validVLiquidity: validVLiquidity.toString(),
     nIZI: nIZI.toString(),
     lastTouchBlock: lastTouchBlock.toString(),
@@ -96,7 +99,7 @@ async function main() {
 
   console.log("Paramters: ");
   for ( var i in para) { console.log("    " + i + ": " + para[i]); }
-  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoost");
+  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
 
@@ -134,10 +137,16 @@ async function main() {
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
         console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
+        console.log('uniLiquidity: ', ts.uniLiquidity);
         console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock);
+        console.log('token0AmountNoDecimal: ', ts.amount0);
+        console.log('token1AmountNoDecimal: ', ts.amount1);
         console.log('token0Amount: ', await getNumDecimal(token0Addr, ts.amount0));
         console.log('token1Amount: ', await getNumDecimal(token1Addr, ts.amount1));
         console.log('iziAmount: ', await getNumDecimal(tokenIZiAddr, ts.nIZI));
+        console.log('totalToken0Amount: ', meta.totalToken0, ' totalToken1Amount: ', meta.totalToken1);
+        console.log('totalFeeCharged0: ', (await mining.totalFeeCharged0()).toString());
+        console.log('totalFeeCharged1: ', (await mining.totalFeeCharged1()).toString())
     }
     console.log('---------------------------------');
     sleep.sleep(1);
