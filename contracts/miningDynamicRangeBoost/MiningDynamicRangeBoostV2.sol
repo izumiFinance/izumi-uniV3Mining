@@ -104,7 +104,7 @@ contract MiningDynamicRangeBoostV2 is MiningBase {
         require(swapPool != address(0), "NO UNI POOL");
 
         // check cardinality to prevent sandwitch attach
-        require(UniswapOracle.getSlot0(swapPool).observationCardinalityNext >= 100, "CAR");
+        require(UniswapOracle.getSlot0(swapPool).observationCardinalityNext >= 50, "CAR");
 
         rewardInfosLen = _rewardInfos.length;
         require(rewardInfosLen > 0, "NO REWARD");
