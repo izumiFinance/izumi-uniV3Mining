@@ -113,6 +113,9 @@ async function main() {
       rewardInfos.push(rewardInfo);
   }
 
+  const contractOwner = await mining.owner();
+  console.log('contract owner: ', contractOwner);
+
   console.log('rewardInfos: ', rewardInfos);
   let meta = await getMeta(mining);
   console.log('meta: ', meta);

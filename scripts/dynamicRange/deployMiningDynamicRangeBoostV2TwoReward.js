@@ -16,6 +16,13 @@ const BigNumber = require("bignumber.js");
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getProviderAddress(providerSymbolOrAddress) {
+  if (providerSymbolOrAddress.slice(0, 2) === '0x') {
+    console.log(providerSymbolOrAddress);
+    return providerSymbolOrAddress;
+  }
+  return contracts[net][providerSymbolOrAddress];
+}
 
 var para = {
     token0Symbol: v[2],
@@ -28,13 +35,13 @@ var para = {
     rewardTokenAddress0: contracts[net][v[5]],
     rewardPerBlock0: v[6],
     provider0Symbol: v[7],
-    provider0: contracts[net][v[7]],
+    provider0: getProviderAddress(v[7]),
 
     rewardTokenSymbol1: v[8],
     rewardTokenAddress1: contracts[net][v[8]],
     rewardPerBlock1: v[9],
     provider1Symbol: v[10],
-    provider1: contracts[net][v[10]],
+    provider1: getProviderAddress(v[10]),
 
     startBlock: v[11],
     endBlock: v[12],
@@ -122,13 +129,13 @@ async function main() {
   console.log('tick range left: ', tickRangeLeft);
   console.log('tick range right: ', tickRangeRight);
 
-  const mining = await Mining.deploy(
-      {
-        uniV3NFTManager: contracts[net].nftManager,
-        token0: para.token0Address,
-        token1: para.token1Address,
-        fee: para.fee
-      },
+  const args = [
+    {
+      uniV3NFTManager: contracts[net].nftManager,
+      token0: para.token0Address,
+      token1: para.token1Address,
+      fee: para.fee
+    },
     [{
       rewardToken: para.rewardTokenAddress0,
       provider: para.provider0,
@@ -147,7 +154,11 @@ async function main() {
     para.chargeReceiver,
     tickRangeLeft,
     tickRangeRight
-  );
+  ];
+
+  console.log('args: ', args);
+
+  const mining = await Mining.deploy(...args);
   await mining.deployed();
   
   console.log("MiningDynamicRangeBoost Contract Address: " , mining.address);

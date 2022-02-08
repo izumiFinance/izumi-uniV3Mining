@@ -8,8 +8,8 @@ const factoryAddress = contracts.factory;
 
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node checkWithdraw.js \
-//     'ONESIDE_WETH9_YIN_3000_EMERGENCY_WITHDRAW' 1913
+//     node checkEmergencyWithdraw.js \
+//     'DYNRANGE_V2_WETH9_DDAO_3000_EMERGENCY_WITHDRAW' 2023
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -65,7 +65,7 @@ async function getRewardInfo(mining, idx) {
     };
 }
 
-async function getBalance(user, tokens) {
+async function getBalance(userAddr, tokens) {
     balance = [];
     for (var tokenAddr of tokens) {
         console.log('token addr: ', tokenAddr);
@@ -73,11 +73,11 @@ async function getBalance(user, tokens) {
         if (BigNumber(tokenAddr).eq('0')) {
           balance.push({_hex:'0x0'});
         } else if (tokenAddr === contracts[net].WETH9) {
-            var b = await hardhat.ethers.provider.getBalance(user.address);
+            var b = await hardhat.ethers.provider.getBalance(userAddr);
             balance.push(b);
         } else {
           var token = await attachToken(tokenAddr);
-          var b = await token.balanceOf(user.address);
+          var b = await token.balanceOf(userAddr);
           balance.push(b);
         }
     }
@@ -92,7 +92,6 @@ function bigNumberListToStr(b) {
 async function main() {
     
   const [deployer, tester] = await hardhat.ethers.getSigners();
-
   console.log('deployer: ', deployer.address);
   console.log('tester: ', tester.address);
 
@@ -127,7 +126,8 @@ async function main() {
   console.log('tokens: ', collectTokens);
 
   tokenIds = [para.nftId];
-  var originBalances = await getBalance(tester, collectTokens);
+  const ownerAddress = await mining.owners(para.nftId);
+  var originBalances = await getBalance(ownerAddress, collectTokens);
   console.log('origin balance: ', originBalances);
   
     for (id of tokenIds) {
@@ -147,12 +147,12 @@ async function main() {
         });
         console.log('reward before collect: ' , reward);
 
-        var tx = await mining.connect(tester).withdraw(id, false);
+        var tx = await mining.emergenceWithdraw(id);
         console.log(tx);
         
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
 
-        var currBalance = await getBalance(tester, collectTokens);
+        var currBalance = await getBalance(ownerAddress, collectTokens);
         console.log('curr balance: ', currBalance);
         for (var i = 0; i < currBalance.length; i ++) {
             currBalance[i]=currBalance[i].minus(originBalances[i]);

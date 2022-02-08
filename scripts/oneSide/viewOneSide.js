@@ -96,6 +96,7 @@ async function main() {
         const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
         console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward, ' valid: ', ts.validVLiquidity, ' totalV: ', meta.totalVLiquidity);
         console.log('vliquidity: ', ts.vLiquidity, ' nizi: ', ts.nIZI, ' totalNizi: ', meta.totalNIZI, ' endblock: ', meta.endBlock, ' totalLock: ', meta.totalLock);
+        console.log('lock: ', ts.lockAmount);
     }
     console.log('---------------------------------');
     sleep.sleep(1);

@@ -51,40 +51,11 @@ async function main() {
   console.log(s0.observationIndex);
   console.log(s0.observationCardinality);
 
-  var ob0 = await getObservation(pool, 0);
-  var ob1 = await getObservation(pool, 1);
-  var ob2 = await getObservation(pool, 2);
-  var ob3 = await getObservation(pool, 3);
-  var ob4 = await getObservation(pool, 4);
-  var ob5 = await getObservation(pool, 5);
-  var ob6 = await getObservation(pool, 6);
-  var ob7 = await getObservation(pool, 7);
-  var ob8 = await getObservation(pool, 8);
-  var ob9 = await getObservation(pool, 9);
-  var ob10 = await getObservation(pool, 10);
-  var ob11 = await getObservation(pool, 11);
-  var ob12 = await getObservation(pool, 12);
-  var ob13 = await getObservation(pool, 13);
-  var ob14 = await getObservation(pool, 14);
-  var ob15 = await getObservation(pool, 15);
-
-  console.log(ob0.tickCumulative, ob0.blockTimestamp, ob0.initialized);
-  console.log(ob1.tickCumulative, ob1.blockTimestamp);
-  console.log(ob2.tickCumulative, ob2.blockTimestamp);
-  console.log(ob3.tickCumulative, ob3.blockTimestamp);
-  console.log(ob4.tickCumulative, ob4.blockTimestamp);
-  console.log(ob5.tickCumulative, ob5.blockTimestamp, ob5.initialized);
-  console.log(ob6.tickCumulative, ob6.blockTimestamp, ob6.initialized);
-  console.log(ob7.tickCumulative, ob7.blockTimestamp, ob7.initialized);
-  console.log(ob8.tickCumulative, ob8.blockTimestamp, ob8.initialized);
-  console.log(ob9.tickCumulative, ob9.blockTimestamp, ob9.initialized);
-  console.log(ob10.tickCumulative, ob10.blockTimestamp, ob10.initialized);
-  console.log(ob11.tickCumulative, ob11.blockTimestamp);
-  console.log(ob12.tickCumulative, ob12.blockTimestamp);
-  console.log(ob13.tickCumulative, ob13.blockTimestamp);
-  console.log(ob14.tickCumulative, ob14.blockTimestamp);
-  console.log(ob15.tickCumulative, ob15.blockTimestamp, ob15.initialized);
-
+  for (var i = 0; i <= Number(s0.observationIndex) + 1; i ++) {
+    console.log(i);
+    var ob = await getObservation(pool, i);
+    console.log(ob.tickCumulative, ob.blockTimestamp, ob.initialized);
+  }
 
 }
 
