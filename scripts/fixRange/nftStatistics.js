@@ -81,16 +81,16 @@ function getAmount(liquidity, tickLower, tickUpper, sqrtPrice) {
   let amount1 = BigNumber(0);
   let liquidityBN = BigNumber(liquidity);
 
-  if (sqrtRatioUpper.gt(sqrtPrice)) {
-    amount0 = _getAmount0(liquidityBN, sqrtRatioLower, sqrtPrice);
-  } else {
+  if (sqrtRatioLower.gt(sqrtPrice)) {
     amount0 = _getAmount0(liquidityBN, sqrtRatioLower, sqrtRatioUpper);
+  } else {
+    amount0 = _getAmount0(liquidityBN, sqrtPrice, sqrtRatioUpper);
   }
 
-  if (sqrtRatioLower.gt(sqrtPrice)) {
-    amount1 = _getAmount1(liquidityBN, sqrtRatioLower, sqrtRatioUpper);
+  if (sqrtRatioUpper.gt(sqrtPrice)) {
+    amount1 = _getAmount1(liquidityBN, sqrtRatioLower, sqrtPrice);
   } else {
-    amount1 = _getAmount1(liquidityBN, sqrtPrice, sqrtRatioUpper);
+    amount1 = _getAmount1(liquidityBN, sqrtRatioLower, sqrtRatioUpper);
   }
 
   return [amount0, amount1];
@@ -146,8 +146,10 @@ async function main() {
       console.log(tickLower, tickUpper);
       console.log(Number(nftDetails[i].tickLower), Number(nftDetails[i].tickUpper));
       const [amount0, amount1] = getAmount(nftDetails[i].liquidity, tickLower, tickUpper, sqrtPrice);
+      console.log('nftId: ', nftId);
       console.log('liquidity: ', nftDetails[i].liquidity);
       const [totalAmount0, totalAmount1] = getAmount(nftDetails[i].liquidity, Number(nftDetails[i].tickLower), Number(nftDetails[i].tickUpper), sqrtPrice);
+      console.log('total amount0: ', totalAmount0.toFixed(0), ' total amount1: ', totalAmount1.toFixed(0));
       const amount0Decimal = amount0.div(10**token0Decimal).toFixed(10);
       const amount1Decimal = amount1.div(10**token1Decimal).toFixed(10);
 
