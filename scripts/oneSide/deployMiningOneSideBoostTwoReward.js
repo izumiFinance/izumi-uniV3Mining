@@ -3,19 +3,26 @@ const contracts = require("../deployed.js");
 const BigNumber = require("bignumber.js");
 
 // example
-// HARDHAT_NETWORK='izumiTest' \
+// HARDHAT_NETWORK='ethereum' \
 //     node deployMiningOneSideBoostTwoReward.js \
-//     'WETH9' 'YIN' 3000 \
-//     'iZi' 4 iZi_PROVIDER \
-//     'YIN' 0.5 YIN_PROVIDER \
+//     'USDC' 'DEVT' 3000 \
+//     'iZi' 3.24074 0xaB11f1e579B177E80E7C20BE4cD8f4EcDF842A31 \
+//     'DEVT' 1.080139 0xaB11f1e579B177E80E7C20BE4cD8f4EcDF842A31 \
 //     1 \
-//     13949414 14134556 \
+//     14163662 14712919 \
 //     1 \
-//     30 \ 
+//     40 \ 
 //     CHARGE_RECEIVER
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getProviderAddress(providerSymbolOrAddress) {
+  if (providerSymbolOrAddress.slice(0, 2) === '0x') {
+    console.log(providerSymbolOrAddress);
+    return providerSymbolOrAddress;
+  }
+  return contracts[net][providerSymbolOrAddress];
+}
 
 var para = {
     tokenUniSymbol: v[2],
@@ -28,13 +35,13 @@ var para = {
     rewardTokenAddress0: contracts[net][v[5]],
     rewardPerBlock0: v[6],
     provider0Symbol: v[7],
-    provider0: contracts[net][v[7]],
+    provider0: getProviderAddress(v[7]),
 
     rewardTokenSymbol1: v[8],
     rewardTokenAddress1: contracts[net][v[8]],
     rewardPerBlock1: v[9],
     provider1Symbol: v[10],
-    provider1: contracts[net][v[10]],
+    provider1: getProviderAddress(v[10]),
 
     lockBoostMultiplier: v[11],
 
@@ -45,6 +52,7 @@ var para = {
     feeChargePercent: v[15],
     chargeReceiver: contracts[net][v[16]],
 }
+console.log('para: ', para);
 
 
 async function attachToken(address) {
@@ -83,6 +91,8 @@ async function approve(token, account, destAddr, amount) {
 async function main() {
     
   const [deployer] = await hardhat.ethers.getSigners();
+
+  console.log('deployer: ', deployer);
 
   const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
 
