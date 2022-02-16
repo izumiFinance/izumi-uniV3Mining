@@ -107,8 +107,10 @@ async function main() {
     for (let i = 0; i < nftIds.length; i ++) {
         const id = nftIds[i];
         const owner = owners[i];
-        const niZi = new BigNumber(iZiBoost[i]).div(10 ** decimal).toFixed(10);
-        list.push([id, owner, niZi]);
+        if (iZiBoost[i] !== '0') {
+            const niZi = new BigNumber(iZiBoost[i]).div(10 ** decimal).toFixed(10);
+            list.push([id, owner, niZi]);
+        }
     }
     
     let data = '';
