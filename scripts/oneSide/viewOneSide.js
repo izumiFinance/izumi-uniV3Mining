@@ -67,6 +67,8 @@ async function main() {
   const Mining = await hardhat.ethers.getContractFactory("MiningOneSideBoostV2");
   const mining = Mining.attach(para.miningPoolAddr);
 
+  console.log('owner: ', await mining.owner());
+
   let rewardInfos = [];
   const amountNoDecimal = [];
   for (var i = 0; i < await mining.rewardInfosLen(); i ++) {
