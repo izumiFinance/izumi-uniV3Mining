@@ -234,7 +234,7 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         }
     }
 
-    function _updateUserStatusBeforeModify(address userAddr) internal returns (UserStatus memory) {
+    function _updateUserStatusBeforeModify(address userAddr) internal returns (UserStatus memory userMem) {
         UserStatus storage user = userStatus[userAddr];
         if (!user.inited) {
             // first time to access
@@ -266,7 +266,7 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         user.veiZi = boostInfo.veiZi;
         user.veStakingId = boostInfo.veStakingId;
 
-        return user;
+        userMem = user;
     }
 
     function _updateUserStatusAfterModify(address userAddr, uint256 validVLiquidity, uint256 validVeiZi, uint256 vLiquidity) internal {
