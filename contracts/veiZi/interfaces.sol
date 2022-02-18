@@ -12,6 +12,4 @@ interface IVeiZi {
             uint256 amount
         );
     
-    function stakeiZiAmount() external view returns(uint256);
-
 }

@@ -48,12 +48,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         uint128 uniLiquidity;
         uint256 lockAmount;
         uint256 vLiquidity;
-        uint256 validVLiquidity;
-        uint256 veiZi;
-        uint256 validVeiZi;
-        uint256 veStakingId;
         uint256 lastTouchBlock;
-        uint256[] lastTouchAccRewardPerShare;
+        uint256[] lastTouchUserAccRewardPerShare;
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
@@ -65,11 +61,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         TokenStatus memory ts = tokenStatus[tokenId];
         t = BaseTokenStatus({
             vLiquidity: ts.vLiquidity,
-            validVLiquidity: ts.validVLiquidity,
-            veiZi: ts.veiZi,
-            validVeiZi: ts.validVeiZi,
-            veStakingId: ts.veStakingId,
-            lastTouchAccRewardPerShare: ts.lastTouchAccRewardPerShare
+            lastTouchUserAccRewardPerShare: ts.lastTouchUserAccRewardPerShare
         });
     }
 
@@ -88,7 +80,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         uint256 _startBlock,
         uint256 _endBlock,
         uint24 feeChargePercent,
-        address _chargeReceiver
+        address _chargeReceiver,
+        uint256 _totalValidVeiZi
     ) MiningBaseVeiZi(
         feeChargePercent, 
         poolParams.uniV3NFTManager, 
@@ -96,7 +89,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         poolParams.uniTokenAddr,
         poolParams.lockTokenAddr,
         poolParams.fee, 
-        _chargeReceiver
+        _chargeReceiver,
+        _totalValidVeiZi
     ) {
         uniV3NFTManager = poolParams.uniV3NFTManager;
         // locking eth is not support
@@ -232,40 +226,35 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     }
 
     /// @notice new a token status when touched.
-    function _newTokenStatus(TokenStatus memory newTokenStatus) internal {
+    function _newTokenStatus(
+        TokenStatus memory newTokenStatus,
+        UserStatus memory user
+    ) internal {
         tokenStatus[newTokenStatus.nftId] = newTokenStatus;
         TokenStatus storage t = tokenStatus[newTokenStatus.nftId];
 
         t.lastTouchBlock = lastTouchBlock;
-        t.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
-        // mark lastTouchAccRewardPerShare as current accRewardPerShare
+        t.lastTouchUserAccRewardPerShare = new uint256[](rewardInfosLen);
+
+        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
         // to prevent collect reward generated before mining
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
+            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
         }
     }
 
     /// @notice update a token status when touched
     function _updateTokenStatus(
         uint256 tokenId,
-        uint256 validVLiquidity,
-        uint256 veiZi,
-        uint256 validVeiZi,
-        uint256 veStakingId
+        UserStatus memory user
     ) internal override {
         TokenStatus storage t = tokenStatus[tokenId];
 
-        // when not boost, validVL == vL
-        t.validVLiquidity = validVLiquidity;
-        t.veiZi = veiZi;
-        t.validVeiZi = validVeiZi;
-        t.veStakingId = veStakingId;
-
         t.lastTouchBlock = lastTouchBlock;
-        // mark lastTouchAccRewardPerShare as current accRewardPerShare
-        // to prevent second-collect reward generated before update
+        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
+        // to prevent collect reward generated before mining
         for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
+            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
         }
     }
 
@@ -396,6 +385,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         }
 
         _updateGlobalStatus();
+        UserStatus memory user = _updateUserStatusBeforeModify(msg.sender);
+
         newTokenStatus.vLiquidity = actualAmountUni * lockBoostMultiplier;
         newTokenStatus.lockAmount = _getLockAmount(
             sqrtPriceX96,
@@ -413,24 +404,15 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         totalLock += newTokenStatus.lockAmount;
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
-        if (address(veiZiAddress) == address(0)) {
-            // boost is not enabled
-            newTokenStatus.veiZi = 0;
-            newTokenStatus.validVeiZi = 0;
-            newTokenStatus.veStakingId = 0;
-            // no need to update totalValidVeiZi
-        } else {
-            (, newTokenStatus.veStakingId, newTokenStatus.veiZi) = IVeiZi(veiZiAddress).stakingInfo(msg.sender);
-            newTokenStatus.validVeiZi = _updateTotalAndComputeValidVeiZi(0, newTokenStatus.veiZi, newTokenStatus.vLiquidity);
-        }
-        newTokenStatus.validVLiquidity = _computeValidVLiquidity(
-            newTokenStatus.vLiquidity,
-            newTokenStatus.veiZi
-        );
-        require(newTokenStatus.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
-        _newTokenStatus(newTokenStatus);
+        user.vLiquidity += newTokenStatus.vLiquidity;
+        user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
+        require(user.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
+        user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
+        _updateUserStatusAfterModify(msg.sender, user.validVLiquidity, user.validVeiZi, user.vLiquidity);
 
-        emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.veiZi);
+        _newTokenStatus(newTokenStatus, user);
+
+        emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.vLiquidity);
     }
 
     /// @notice Widthdraw a single position.
@@ -439,15 +421,14 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     function withdraw(uint256 tokenId, bool noReward) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
-        if (noReward) {
-            _updateGlobalStatus();
-        } else {
-            _collectReward(tokenId);
-        }
+        _collectReward(tokenId, noReward);
         TokenStatus memory t = tokenStatus[tokenId];
 
         _updateVLiquidity(t.vLiquidity, false);
-        totalValidVeiZi -= t.validVeiZi;
+        UserStatus storage user = userStatus[msg.sender];
+        user.vLiquidity = user.vLiquidity - t.vLiquidity;
+        user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
+        user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
 
         if (t.lockAmount > 0) {
             // refund lockToken to user
@@ -491,7 +472,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     /// @param tokenId The related position id.
     function collect(uint256 tokenId) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        _collectReward(tokenId);
+        _collectReward(tokenId, false);
         if (feeRemainPercent == 100) {
             INonfungiblePositionManager.CollectParams
                 memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
@@ -506,7 +487,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         for (uint256 i = 0; i < ids.length(); i++) {
             uint256 tokenId = ids.at(i);
             require(owners[tokenId] == msg.sender, "NOT OWNER");
-            _collectReward(tokenId);
+            _collectReward(tokenId, false);
             if (feeRemainPercent == 100) {
                 INonfungiblePositionManager.CollectParams
                     memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
