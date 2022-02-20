@@ -257,8 +257,8 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
 
         for (uint256 i = 0; i < rewardInfosLen; i ++) {
             // note we use oldValidVLiquidity to prevent double spending of veiZi
-            uint256 tokenReward = (rewardInfos[i].accRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity / FixedPoints.Q128;
-            user.userAccRewardPerShare[i] = user.userAccRewardPerShare[i] + ((tokenReward * FixedPoints.Q128) / user.vLiquidity);
+            uint256 tokenRewardX128 = (rewardInfos[i].accRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity;
+            user.userAccRewardPerShare[i] = user.userAccRewardPerShare[i] + tokenRewardX128 / user.vLiquidity;
             user.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
 
@@ -314,9 +314,13 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
     /// @return validVeiZi computed validVeiZi for this mining
     function _updateTotalAndComputeValidVeiZi(uint256 originValidVeiZi, uint256 veiZi, uint256 vLiquidity) internal returns(uint256 validVeiZi) {
         totalValidVeiZi -= originValidVeiZi;
-        // note vLiquidity < Q128
-        validVeiZi = Math.min(veiZi, 2 * totalValidVeiZi * vLiquidity / totalVLiquidity);
-        totalValidVeiZi += validVeiZi;
+        if (totalVLiquidity == 0) {
+            validVeiZi = 0;
+        } else {
+            // note vLiquidity < Q128
+            validVeiZi = Math.min(veiZi, 2 * totalValidVeiZi * vLiquidity / totalVLiquidity);
+            totalValidVeiZi += validVeiZi;
+        }
     }
 
     /// @notice compute validVLiquidity
@@ -418,6 +422,12 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
 
         address userAddr = owners[tokenId];
         UserStatus memory user = userStatus[userAddr];
+        if (user.vLiquidity == 0) {
+            for (uint256 i = 0; i < rewardInfosLen; i ++) {
+                _reward[i] = 0;
+            }
+            return _reward;
+        }
         BoostInfo memory boostInfo = _checkDoubleSpendingWithBoostInfo(user, userAddr);
         for (uint256 i = 0; i < rewardInfosLen; i++) {
             uint256 globalReward = _getRewardBlockNum(
@@ -426,9 +436,9 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
             ) * rewardInfos[i].rewardPerBlock;
             uint256 globalRewardPerShare = rewardInfos[i].accRewardPerShare + (globalReward * FixedPoints.Q128) / totalVLiquidity;
             // here we use boostInfo.oldValidVLiquidity to prevent double spending of veiZi
-            uint256 userReward = (globalRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity / user.vLiquidity;
+            uint256 userRewardX128 = (globalRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity;
 
-            uint256 userRewardPerShare = user.userAccRewardPerShare[i] + (userReward * FixedPoints.Q128) / user.vLiquidity;
+            uint256 userRewardPerShare = user.userAccRewardPerShare[i] + userRewardX128 / user.vLiquidity;
             // l * (currentAcc - lastAcc)
             _reward[i] = (t.vLiquidity * (userRewardPerShare - t.lastTouchUserAccRewardPerShare[i])) / FixedPoints.Q128;
         }

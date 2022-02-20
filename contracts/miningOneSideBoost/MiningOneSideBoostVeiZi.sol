@@ -279,6 +279,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             rewardPool.fee
         );
+
         if (uniToken < lockToken) {
             // price is lockToken / uniToken
             // uniToken is X
