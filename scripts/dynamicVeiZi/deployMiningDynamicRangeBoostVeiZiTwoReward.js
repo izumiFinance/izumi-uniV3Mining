@@ -102,7 +102,7 @@ async function main() {
     para.token1Symbol = tmp;
   }
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoostV2");
+  const Mining = await hardhat.ethers.getContractFactory("MiningDynamicRangeBoostVeiZi");
 
   para.rewardPerBlock0 = await getNumNoDecimal(para.rewardTokenAddress0, para.rewardPerBlock0);
   para.rewardPerBlock1 = await getNumNoDecimal(para.rewardTokenAddress1, para.rewardPerBlock1);
