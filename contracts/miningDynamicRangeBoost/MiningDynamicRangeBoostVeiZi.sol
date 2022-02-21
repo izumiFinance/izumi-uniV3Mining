@@ -28,6 +28,9 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
     int24 internal constant TICK_MAX = 500000;
     int24 internal constant TICK_MIN = -500000;
 
+    int24 public tickRangeLeft;
+    int24 public tickRangeRight;
+    
     bool public token0IsETH;
     bool public token1IsETH;
 
@@ -67,6 +70,8 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         uint256 _endBlock,
         uint24 feeChargePercent,
         address _chargeReceiver,
+        int24 _tickRangeLeft,
+        int24 _tickRangeRight,
         uint256 _totalValidVeiZi
     ) MiningBaseVeiZi(
         feeChargePercent, 
@@ -116,6 +121,9 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
 
         totalToken0 = 0;
         totalToken1 = 0;
+
+        tickRangeLeft = _tickRangeLeft;
+        tickRangeRight = _tickRangeRight;
     }
 
     /// @notice Get the overall info for the mining contract.
@@ -170,8 +178,8 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         // tickSpacing != 0 is ensured before deploy this contract
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(rewardPool.fee);
         // 1.0001^6932 = 2
-        tickLeft = Math.max(avgTick - 6932, TICK_MIN);
-        tickRight = Math.min(avgTick + 6932, TICK_MAX);
+        tickLeft = Math.max(avgTick - tickRangeLeft, TICK_MIN);
+        tickRight = Math.min(avgTick + tickRangeRight, TICK_MAX);
         // round down to times of tickSpacing
         tickLeft = Math.tickFloor(tickLeft, tickSpacing);
         // round up to times of tickSpacing
