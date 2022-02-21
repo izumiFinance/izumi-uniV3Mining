@@ -94,10 +94,9 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 tokenId);
     /// @notice emit if user successfully collect reward
     /// @param user user
-    /// @param tokenId id of mining (same as uniswap nft token id)
     /// @param token address of reward erc-20 token
     /// @param amount amount of erc-20 token user received 
-    event CollectReward(address indexed user, uint256 tokenId, address token, uint256 amount);
+    event CollectReward(address indexed user, address token, uint256 amount);
     /// @notice emit if contract owner successfully calls modifyEndBlock(...)
     /// @param endBlock endBlock 
     event ModifyEndBlock(uint256 endBlock);
@@ -109,6 +108,12 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
     /// @param rewardToken address of reward erc20-token
     /// @param provider New provider
     event ModifyProvider(address indexed rewardToken, address provider);
+
+    bool normal;
+    modifier checkNormal() {
+        require(normal, "has emergency withrawed");
+        _;
+    }
 
     function _setRewardPool(
         address tokenA,
@@ -134,6 +139,7 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         _setRewardPool(tokenA, tokenB, fee);
 
         totalValidVeiZi = _totalValidVeiZi; // start totalValidVeiZi cannot be 0, otherwise all validVeiZi will be 0
+        normal = true;
     }
 
     /// @notice Transfers ETH to the recipient address
@@ -203,7 +209,6 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         uint256 veStakingId;
         uint256 validVeiZi;
         uint256[] lastTouchAccRewardPerShare;
-        uint256[] userAccRewardPerShare;
     }
 
     mapping(address => UserStatus) public userStatus;
@@ -234,31 +239,39 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         }
     }
 
-    function _updateUserStatusBeforeModify(address userAddr) internal returns (UserStatus memory userMem) {
+    function _collectUserReward(address userAddr, bool noReward) internal {
+        _updateGlobalStatus();
         UserStatus storage user = userStatus[userAddr];
         if (!user.inited) {
             // first time to access
             user.inited = true;
             user.lastTouchAccRewardPerShare = new uint256[](rewardInfosLen);
-            user.userAccRewardPerShare = new uint256[](rewardInfosLen);
             for (uint256 i = 0; i < rewardInfosLen; i ++) {
                 user.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
-                user.userAccRewardPerShare[i] = 0;
             }
-            return user;
         }
         if (user.vLiquidity == 0) {
             for (uint256 i = 0; i < rewardInfosLen; i ++) {
                 user.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
             }
-            return user;
         }
         BoostInfo memory boostInfo = _checkDoubleSpendingWithBoostInfo(user, userAddr);
 
         for (uint256 i = 0; i < rewardInfosLen; i ++) {
             // note we use oldValidVLiquidity to prevent double spending of veiZi
-            uint256 tokenRewardX128 = (rewardInfos[i].accRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity;
-            user.userAccRewardPerShare[i] = user.userAccRewardPerShare[i] + tokenRewardX128 / user.vLiquidity;
+            uint256 tokenReward = (rewardInfos[i].accRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity / FixedPoints.Q128;
+            if (tokenReward > 0 && !noReward) {
+                IERC20(rewardInfos[i].rewardToken).safeTransferFrom(
+                    rewardInfos[i].provider,
+                    msg.sender,
+                    tokenReward
+                );
+                emit CollectReward(
+                    msg.sender,
+                    rewardInfos[i].rewardToken,
+                    tokenReward
+                );
+            }
             user.lastTouchAccRewardPerShare[i] = rewardInfos[i].accRewardPerShare;
         }
 
@@ -266,44 +279,9 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         user.veiZi = boostInfo.veiZi;
         user.veStakingId = boostInfo.veStakingId;
 
-        userMem = user;
-    }
+        user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
+        user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
 
-    function _updateUserStatusAfterModify(address userAddr, uint256 validVLiquidity, uint256 validVeiZi, uint256 vLiquidity) internal {
-        UserStatus storage user = userStatus[userAddr];
-        user.validVLiquidity = validVLiquidity;
-        user.validVeiZi = validVeiZi;
-        user.vLiquidity = vLiquidity;
-    }
-
-    /// @notice update a token status when touched
-    /// @param tokenId id of TokenStatus obj in sub-contracts (same with uniswap nft id)
-    /// @param user UserStatus of token's owner
-    function _updateTokenStatus(
-        uint256 tokenId,
-        UserStatus memory user
-    ) internal virtual;
-
-    struct BaseTokenStatus {
-        uint256 vLiquidity;
-        uint256[] lastTouchUserAccRewardPerShare;
-    }
-
-    /// @notice get base infomation from token status in sub-contracts
-    /// @param tokenId id of TokenStatus obj in sub-contracts
-    /// @return t contains base infomation (uint256 vLiquidity, uint256 validVLiquidity, uint256 nIZI, uint256[] lastTouchAccRewardPerShare)
-    function getBaseTokenStatus(uint256 tokenId) internal virtual view returns(BaseTokenStatus memory t);
-
-
-    /// @notice collect farming reward and update validVLiquidity
-    /// @param tokenId nft already deposited
-    function update(uint256 tokenId)
-        external
-        nonReentrant
-    {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        require(address(veiZiAddress) != address(0), "NOT BOOST");
-        _collectReward(tokenId, false);
     }
 
     /// @notice compute validVeiZi and update totalValidVeiZi, this function must be called after totalVLiquidity updated
@@ -333,42 +311,6 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
             uint256 iZiVLiquidity = vLiquidity * 4 / 10 + totalVLiquidity * veiZi / totalValidVeiZi * 6 / 10;
             validVLiquidity = Math.min(iZiVLiquidity, vLiquidity);
         }
-    }
-
-    /// @notice Collect pending reward for a single position. can be called by sub-contracts
-    /// @param tokenId The related position id.
-    /// @param noReward whether collect reward for user
-    function _collectReward(uint256 tokenId, bool noReward) internal {
-        
-        _updateGlobalStatus();
-        UserStatus memory user = _updateUserStatusBeforeModify(msg.sender);
-        BaseTokenStatus memory t = getBaseTokenStatus(tokenId);
-
-        if (!noReward) {
-            for (uint256 i = 0; i < rewardInfosLen; i++) {
-                // multiplied by Q128 before
-                // for single nft, get reward from user's UserStatus
-                uint256 _reward = (t.vLiquidity * (user.userAccRewardPerShare[i] - t.lastTouchUserAccRewardPerShare[i])) / FixedPoints.Q128;
-                if (_reward > 0) {
-                    IERC20(rewardInfos[i].rewardToken).safeTransferFrom(
-                        rewardInfos[i].provider,
-                        msg.sender,
-                        _reward
-                    );
-                }
-                emit CollectReward(
-                    msg.sender,
-                    tokenId,
-                    rewardInfos[i].rewardToken,
-                    _reward
-                );
-            }
-        }
-
-        user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
-        user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
-        _updateUserStatusAfterModify(msg.sender, user.validVLiquidity, user.validVeiZi, user.vLiquidity);
-        _updateTokenStatus(tokenId, user);
     }
 
     /// @notice View function to get position ids staked here for an user.
@@ -409,18 +351,15 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
         }
     }
 
-    /// @notice View function to see pending Reward for a single position.
-    /// @param tokenId The related position id.
-    /// @return list of pending reward amount for each reward ERC20-token of tokenId
-    function pendingReward(uint256 tokenId)
+    /// @notice View function to see pending Rewards for an address.
+    /// @param userAddr The related address.
+    /// @return list of pending reward amount for each reward ERC20-token of this user
+    function pendingRewards(address userAddr)
         public
         view
         returns (uint256[] memory)
     {
-        BaseTokenStatus memory t = getBaseTokenStatus(tokenId);
         uint256[] memory _reward = new uint256[](rewardInfosLen);
-
-        address userAddr = owners[tokenId];
         UserStatus memory user = userStatus[userAddr];
         if (user.vLiquidity == 0) {
             for (uint256 i = 0; i < rewardInfosLen; i ++) {
@@ -436,33 +375,7 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
             ) * rewardInfos[i].rewardPerBlock;
             uint256 globalRewardPerShare = rewardInfos[i].accRewardPerShare + (globalReward * FixedPoints.Q128) / totalVLiquidity;
             // here we use boostInfo.oldValidVLiquidity to prevent double spending of veiZi
-            uint256 userRewardX128 = (globalRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity;
-
-            uint256 userRewardPerShare = user.userAccRewardPerShare[i] + userRewardX128 / user.vLiquidity;
-            // l * (currentAcc - lastAcc)
-            _reward[i] = (t.vLiquidity * (userRewardPerShare - t.lastTouchUserAccRewardPerShare[i])) / FixedPoints.Q128;
-        }
-        return _reward;
-    }
-
-    /// @notice View function to see pending Rewards for an address.
-    /// @param _user The related address.
-    /// @return list of pending reward amount for each reward ERC20-token of this user
-    function pendingRewards(address _user)
-        external
-        view
-        returns (uint256[] memory)
-    {
-        uint256[] memory _reward = new uint256[](rewardInfosLen);
-        for (uint256 j = 0; j < rewardInfosLen; j++) {
-            _reward[j] = 0;
-        }
-
-        for (uint256 i = 0; i < tokenIds[_user].length(); i++) {
-            uint256[] memory r = pendingReward(tokenIds[_user].at(i));
-            for (uint256 j = 0; j < rewardInfosLen; j++) {
-                _reward[j] += r[j];
-            }
+            _reward[i] = (globalRewardPerShare - user.lastTouchAccRewardPerShare[i]) * boostInfo.oldValidVLiquidity / FixedPoints.Q128;
         }
         return _reward;
     }

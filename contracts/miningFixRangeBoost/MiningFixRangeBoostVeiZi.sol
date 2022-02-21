@@ -19,7 +19,7 @@ import "../base/MiningBaseVeiZi.sol";
 
 
 /// @title Uniswap V3 Liquidity Mining Main Contract
-contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
+contract MiningFixRangeBoostVeiZi is MiningBaseVeiZi, IERC721Receiver {
     using Math for int24;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -34,22 +34,11 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
     /// @dev Record the status for a certain token for the last touched time.
     struct TokenStatus {
         uint256 vLiquidity;
-        uint256 lastTouchBlock;
         uint256 lastTokensOwed0;
         uint256 lastTokensOwed1;
-        uint256[] lastTouchUserAccRewardPerShare;
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
-
-    // override for mining base
-    function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
-        TokenStatus memory ts = tokenStatus[tokenId];
-        t = BaseTokenStatus({
-            vLiquidity: ts.vLiquidity,
-            lastTouchUserAccRewardPerShare: ts.lastTouchUserAccRewardPerShare
-        });
-    }
 
     struct PoolParams {
         address uniV3NFTManager;
@@ -178,44 +167,10 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
         return vLiquidity;
     }
 
-    /// @notice new a token status when touched.
-    function _newTokenStatus(
-        uint256 nftId, 
-        TokenStatus memory newTokenStatus,
-        UserStatus memory user
-    ) internal {
-        tokenStatus[nftId] = newTokenStatus;
-        TokenStatus storage t = tokenStatus[nftId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        t.lastTouchUserAccRewardPerShare = new uint256[](rewardInfosLen);
-
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
-    /// @notice update a token status when touched
-    function _updateTokenStatus(
-        uint256 tokenId,
-        UserStatus memory user
-    ) internal override {
-        TokenStatus storage t = tokenStatus[tokenId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
     /// @notice Deposit a single position.
     /// @param tokenId The related position id.
     function deposit(uint256 tokenId)
-        external
+        external checkNormal
         returns (uint256 vLiquidity)
     {
         address owner = INonfungiblePositionManager(uniV3NFTManager).ownerOf(tokenId);
@@ -254,19 +209,18 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
 
         // the execution order for the next three lines is crutial
         _updateGlobalStatus();
-        UserStatus memory user = _updateUserStatusBeforeModify(msg.sender);
+        _collectUserReward(msg.sender, false);
 
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
-
+        UserStatus storage user = userStatus[msg.sender];
         user.vLiquidity += newTokenStatus.vLiquidity;
         user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
         require(user.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
         user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
-        _updateUserStatusAfterModify(msg.sender, user.validVLiquidity, user.validVeiZi, user.vLiquidity);
         
         newTokenStatus.lastTokensOwed0 = uint256(position.tokensOwed0);
         newTokenStatus.lastTokensOwed1 = uint256(position.tokensOwed1);
-        _newTokenStatus(tokenId, newTokenStatus, user);
+        tokenStatus[tokenId] = newTokenStatus;
 
         emit Deposit(msg.sender, tokenId, newTokenStatus.vLiquidity);
         return newTokenStatus.vLiquidity;
@@ -278,7 +232,7 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
     function withdraw(uint256 tokenId, bool noReward) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
-        _collectReward(tokenId, noReward);
+        _collectUserReward(msg.sender, noReward || (!normal));
         TokenStatus memory t = tokenStatus[tokenId];
 
         _updateVLiquidity(t.vLiquidity, false);
@@ -313,20 +267,11 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
         emit Withdraw(msg.sender, tokenId);
     }
 
-    /// @notice Collect pending reward for a single position.
-    /// @param tokenId The related position id.
-    function collectReward(uint256 tokenId) external nonReentrant {
-        require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
-        _collectReward(tokenId, false);
-    }
 
     /// @notice Collect all pending rewards.
-    function collectRewards() external nonReentrant {
-        EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
-        for (uint256 i = 0; i < ids.length(); i++) {
-            require(owners[ids.at(i)] == msg.sender, "NOT OWNER");
-            _collectReward(ids.at(i), false);
-        }
+    function collectRewards() external nonReentrant checkNormal {
+        // owner of all token has been checked
+        _collectUserReward(msg.sender, false);
     }
 
     // Control fuctions for the contract owner and operators.
@@ -343,6 +288,7 @@ contract MiningFixRangeBoostV2 is MiningBaseVeiZi, IERC721Receiver {
         );
         // make sure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
+        normal = false;
     }
 
 }

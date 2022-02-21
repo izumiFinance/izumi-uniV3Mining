@@ -46,21 +46,12 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         uint256 lastTouchBlock;
         uint256 amount0;
         uint256 amount1;
-        uint256[] lastTouchUserAccRewardPerShare;
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
 
     receive() external payable {}
 
-    // override for mining base
-    function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
-        TokenStatus memory ts = tokenStatus[tokenId];
-        t = BaseTokenStatus({
-            vLiquidity: ts.vLiquidity,
-            lastTouchUserAccRewardPerShare: ts.lastTouchUserAccRewardPerShare
-        });
-    }
 
     struct PoolParams {
         address uniV3NFTManager;
@@ -160,39 +151,6 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         );
     }
 
-    /// @notice new a token status when touched.
-    function _newTokenStatus(
-        TokenStatus memory newTokenStatus,
-        UserStatus memory user
-    ) internal {
-        tokenStatus[newTokenStatus.nftId] = newTokenStatus;
-        TokenStatus storage t = tokenStatus[newTokenStatus.nftId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        t.lastTouchUserAccRewardPerShare = new uint256[](rewardInfosLen);
-
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
-    /// @notice update a token status when touched
-    function _updateTokenStatus(
-        uint256 tokenId,
-        UserStatus memory user
-    ) internal override {
-        TokenStatus storage t = tokenStatus[tokenId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
     /// @dev compute tick range converted from [oraclePrice / 2, oraclePrice * 2]
     /// @param stdTick, (tickLeft + tickRight) / 2 should not too differ from stdTick
     /// @return tickLeft
@@ -279,7 +237,7 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         uint256 amount0Desired,
         uint256 amount1Desired,
         int24 stdTick
-    ) external payable nonReentrant {
+    ) external payable nonReentrant checkNormal {
         _recvTokenFromUser(rewardPool.token0, msg.sender, amount0Desired);
         _recvTokenFromUser(rewardPool.token1, msg.sender, amount1Desired);
         (int24 tickLeft, int24 tickRight) = _getTickRange(stdTick);
@@ -320,17 +278,17 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         }
 
         _updateGlobalStatus();
-        UserStatus memory user = _updateUserStatusBeforeModify(msg.sender);
+        _collectUserReward(msg.sender, false);
 
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
+        UserStatus storage user = userStatus[msg.sender];
         user.vLiquidity += newTokenStatus.vLiquidity;
         user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
         require(user.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
         user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
-        _updateUserStatusAfterModify(msg.sender, user.validVLiquidity, user.validVeiZi, user.vLiquidity);
 
-        _newTokenStatus(newTokenStatus, user);
+        tokenStatus[newTokenStatus.nftId] = newTokenStatus;
 
         emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.vLiquidity);
     }
@@ -341,7 +299,7 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
     function withdraw(uint256 tokenId, bool noReward) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
-        _collectReward(tokenId, noReward);
+        _collectUserReward(msg.sender, noReward || (!normal));
         TokenStatus memory t = tokenStatus[tokenId];
         totalToken0 -= t.amount0;
         totalToken1 -= t.amount1;
@@ -384,33 +342,10 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         emit Withdraw(msg.sender, tokenId);
     }
 
-    /// @notice Collect pending reward for a single position.
-    /// @param tokenId The related position id.
-    function collect(uint256 tokenId) external nonReentrant {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        _collectReward(tokenId, false);
-        if (feeRemainPercent == 100) {
-            INonfungiblePositionManager.CollectParams
-                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-            // collect swap fee from uniswap
-            INonfungiblePositionManager(uniV3NFTManager).collect(params);
-        }
-    }
-
     /// @notice Collect all pending rewards.
-    function collectAllTokens() external nonReentrant {
-        EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
-        for (uint256 i = 0; i < ids.length(); i++) {
-            uint256 tokenId = ids.at(i);
-            require(owners[tokenId] == msg.sender, "NOT OWNER");
-            _collectReward(tokenId, false);
-            if (feeRemainPercent == 100) {
-                INonfungiblePositionManager.CollectParams
-                    memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-                // collect swap fee from uniswap
-                INonfungiblePositionManager(uniV3NFTManager).collect(params);
-            }
-        }
+    function collectAllTokens() external nonReentrant checkNormal {
+        // owner of all token has been checked
+        _collectUserReward(msg.sender, false);
     }
 
     // Control fuctions for the contract owner and operators.
@@ -428,6 +363,7 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
 
         // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
+        normal = false;
     }
 
 }

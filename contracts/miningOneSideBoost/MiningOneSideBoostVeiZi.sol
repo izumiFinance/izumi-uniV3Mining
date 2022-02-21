@@ -48,22 +48,11 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         uint128 uniLiquidity;
         uint256 lockAmount;
         uint256 vLiquidity;
-        uint256 lastTouchBlock;
-        uint256[] lastTouchUserAccRewardPerShare;
     }
 
     mapping(uint256 => TokenStatus) public tokenStatus;
 
     receive() external payable {}
-
-    // override for mining base
-    function getBaseTokenStatus(uint256 tokenId) internal override view returns(BaseTokenStatus memory t) {
-        TokenStatus memory ts = tokenStatus[tokenId];
-        t = BaseTokenStatus({
-            vLiquidity: ts.vLiquidity,
-            lastTouchUserAccRewardPerShare: ts.lastTouchUserAccRewardPerShare
-        });
-    }
 
     struct PoolParams {
         address uniV3NFTManager;
@@ -225,39 +214,6 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         require(lockAmount > 0, "LOCK 0");
     }
 
-    /// @notice new a token status when touched.
-    function _newTokenStatus(
-        TokenStatus memory newTokenStatus,
-        UserStatus memory user
-    ) internal {
-        tokenStatus[newTokenStatus.nftId] = newTokenStatus;
-        TokenStatus storage t = tokenStatus[newTokenStatus.nftId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        t.lastTouchUserAccRewardPerShare = new uint256[](rewardInfosLen);
-
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
-    /// @notice update a token status when touched
-    function _updateTokenStatus(
-        uint256 tokenId,
-        UserStatus memory user
-    ) internal override {
-        TokenStatus storage t = tokenStatus[tokenId];
-
-        t.lastTouchBlock = lastTouchBlock;
-        // mark lastTouchUserAccRewardPerShare as current user.userAccRewardPerShare
-        // to prevent collect reward generated before mining
-        for (uint256 i = 0; i < rewardInfosLen; i++) {
-            t.lastTouchUserAccRewardPerShare[i] = user.userAccRewardPerShare[i];
-        }
-    }
-
     /// @dev get sqrtPrice of pool(uniToken/tokenSwap/fee)
     ///    and compute tick range converted from [TICK_MIN, PriceUni] or [PriceUni, TICK_MAX]
     /// @return sqrtPriceX96 current sqrtprice value viewed from uniswap pool, is a 96-bit fixed point number
@@ -317,7 +273,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     function depositWithuniToken(
         uint256 uniAmount,
         uint256 deadline
-    ) external payable nonReentrant {
+    ) external payable nonReentrant checkNormal {
         require(uniAmount >= 1e7, "TOKENUNI AMOUNT TOO SMALL");
         require(uniAmount < FixedPoints.Q96 / 3, "TOKENUNI AMOUNT TOO LARGE");
         if (uniIsETH) {
@@ -386,7 +342,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         }
 
         _updateGlobalStatus();
-        UserStatus memory user = _updateUserStatusBeforeModify(msg.sender);
+        _collectUserReward(msg.sender, false);
 
         newTokenStatus.vLiquidity = actualAmountUni * lockBoostMultiplier;
         newTokenStatus.lockAmount = _getLockAmount(
@@ -405,13 +361,13 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         totalLock += newTokenStatus.lockAmount;
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
 
+        UserStatus storage user = userStatus[msg.sender];
         user.vLiquidity += newTokenStatus.vLiquidity;
         user.validVeiZi = _updateTotalAndComputeValidVeiZi(user.validVeiZi, user.veiZi, user.vLiquidity);
         require(user.validVeiZi < FixedPoints.Q128 / 6, "veiZi O");
         user.validVLiquidity = _computeValidVLiquidity(user.vLiquidity, user.veiZi);
-        _updateUserStatusAfterModify(msg.sender, user.validVLiquidity, user.validVeiZi, user.vLiquidity);
 
-        _newTokenStatus(newTokenStatus, user);
+        tokenStatus[newTokenStatus.nftId] = newTokenStatus;
 
         emit Deposit(msg.sender, newTokenStatus.nftId, newTokenStatus.vLiquidity);
     }
@@ -422,7 +378,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     function withdraw(uint256 tokenId, bool noReward) external nonReentrant {
         require(owners[tokenId] == msg.sender, "NOT OWNER OR NOT EXIST");
 
-        _collectReward(tokenId, noReward);
+        _collectUserReward(msg.sender, noReward || (!normal));
         TokenStatus memory t = tokenStatus[tokenId];
 
         _updateVLiquidity(t.vLiquidity, false);
@@ -469,33 +425,10 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         emit Withdraw(msg.sender, tokenId);
     }
 
-    /// @notice Collect pending reward for a single position.
-    /// @param tokenId The related position id.
-    function collect(uint256 tokenId) external nonReentrant {
-        require(owners[tokenId] == msg.sender, "NOT OWNER or NOT EXIST");
-        _collectReward(tokenId, false);
-        if (feeRemainPercent == 100) {
-            INonfungiblePositionManager.CollectParams
-                memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-            // collect swap fee from uniswap
-            INonfungiblePositionManager(uniV3NFTManager).collect(params);
-        }
-    }
-
     /// @notice Collect all pending rewards.
-    function collectAllTokens() external nonReentrant {
-        EnumerableSet.UintSet storage ids = tokenIds[msg.sender];
-        for (uint256 i = 0; i < ids.length(); i++) {
-            uint256 tokenId = ids.at(i);
-            require(owners[tokenId] == msg.sender, "NOT OWNER");
-            _collectReward(tokenId, false);
-            if (feeRemainPercent == 100) {
-                INonfungiblePositionManager.CollectParams
-                    memory params = UniswapCallingParams.collectParams(tokenId, msg.sender);
-                // collect swap fee from uniswap
-                INonfungiblePositionManager(uniV3NFTManager).collect(params);
-            }
-        }
+    function collectAllTokens() external nonReentrant checkNormal {
+        // owner of all token has been checked
+        _collectUserReward(msg.sender, false);
     }
 
     // Control fuctions for the contract owner and operators.
@@ -520,6 +453,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         }
         // makesure user cannot withdraw/depositIZI or collect reward on this nft
         owners[tokenId] = address(0);
+        normal = false;
     }
 
 }
