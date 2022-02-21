@@ -46,6 +46,7 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
     struct TokenStatus {
         uint256 nftId;
         uint256 vLiquidity;
+        uint256 uniLiquidity;
         uint256 lastTouchBlock;
         uint256 amount0;
         uint256 amount1;
@@ -260,12 +261,16 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
         uint256 actualAmount1;
         (
             newTokenStatus.nftId,
-            newTokenStatus.vLiquidity,
+            newTokenStatus.uniLiquidity,
             actualAmount0,
             actualAmount1
         ) = INonfungiblePositionManager(uniV3NFTManager).mint{
             value: msg.value
         }(uniParams);
+
+        require(newTokenStatus.uniLiquidity > 1e7, "liquidity too small!");
+        newTokenStatus.vLiquidity = newTokenStatus.uniLiquidity / 1e6;
+
         totalToken0 += actualAmount0;
         totalToken1 += actualAmount1;
         newTokenStatus.amount0 = actualAmount0;
@@ -332,7 +337,7 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
 
         // then decrease and collect from uniswap
         INonfungiblePositionManager(uniV3NFTManager).decreaseLiquidity(
-            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.vLiquidity), type(uint256).max)
+            UniswapCallingParams.decreaseLiquidityParams(tokenId, uint128(t.uniLiquidity), type(uint256).max)
         );
         (amount0, amount1) = INonfungiblePositionManager(
             uniV3NFTManager
