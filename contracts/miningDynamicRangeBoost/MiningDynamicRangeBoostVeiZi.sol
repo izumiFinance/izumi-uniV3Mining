@@ -277,7 +277,6 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
             _refundTokenToUser(rewardPool.token1, msg.sender, amount1Desired - actualAmount1);
         }
 
-        _updateGlobalStatus();
         _collectUserReward(msg.sender, false);
 
         _updateVLiquidity(newTokenStatus.vLiquidity, true);

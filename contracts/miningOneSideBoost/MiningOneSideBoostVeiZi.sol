@@ -341,7 +341,6 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
             }
         }
 
-        _updateGlobalStatus();
         _collectUserReward(msg.sender, false);
 
         newTokenStatus.vLiquidity = actualAmountUni * lockBoostMultiplier;

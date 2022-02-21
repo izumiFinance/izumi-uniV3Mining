@@ -207,8 +207,6 @@ contract MiningFixRangeBoostVeiZi is MiningBaseVeiZi, IERC721Receiver {
         bool res = tokenIds[msg.sender].add(tokenId);
         require(res);
 
-        // the execution order for the next three lines is crutial
-        _updateGlobalStatus();
         _collectUserReward(msg.sender, false);
 
         _updateVLiquidity(newTokenStatus.vLiquidity, true);
