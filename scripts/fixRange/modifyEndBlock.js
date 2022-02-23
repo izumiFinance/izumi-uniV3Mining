@@ -12,7 +12,6 @@ const pk = secret.pk;
 //     node modifyEndBlock.js \
 //     'FIXRANGE_V2_USDC_USDT_100' 
 //     150000
-//     1
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
@@ -22,7 +21,6 @@ const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: contracts[net][v[2]],
     endBlock: v[3],
-    owner: Number(v[4])
 }
 
 const web3 = getWeb3();
@@ -40,9 +38,12 @@ async function main() {
   const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
   const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
   console.log('gas limit: ', gasLimit);
+  const nonce = await web3.eth.getTransactionCount(owner, 'pending');
+  console.log('nonce: ', nonce);
   const signedTx = await web3.eth.accounts.signTransaction(
       {
-          // nonce: 0,
+          nonce: 41,
+          gasPrice: '50000000000',
           to: para.miningPoolAddr,
           data:txData,
           gas: BigNumber(gasLimit * 1.1).toFixed(0, 2),
