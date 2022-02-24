@@ -128,7 +128,9 @@ async function withdrawAndComputeBalanceDiff(tokenMap, mining, tester, nftId) {
 
 async function addLiquidityAndComputeBalanceDiff(tokenMap, mining, tester, uniAmount) {
     const beforeBalance = await getTokenBalance(tokenMap, tester);
-    const tx = await mining.connect(tester).depositWithuniToken(uniAmount, '0xffffffff');
+    const oraclePrice = await mining.getOraclePrice();
+    const avgTick = oraclePrice.avgTick;
+    const tx = await mining.connect(tester).depositWithuniToken(uniAmount, avgTick, '0xffffffff');
     const afterBalance = await getTokenBalance(tokenMap, tester);
     const delta = {};
     for (const key in tokenMap) {
@@ -306,9 +308,12 @@ describe("test uniswap price oracle", function () {
         const MAXTIME = await veiZi.MAXTIME();
         await veiZi.connect(miner).stake('1', decimal2Amount(50000, 18), blockNumber + MAXTIME);
 
-        await mining.connect(miner).depositWithuniToken(decimal2Amount(15000, 6), '0xffffffff');
-        await mining.connect(tester).depositWithuniToken(decimal2Amount(1000, 6), '0xffffffff');
-        await mining.connect(tester).depositWithuniToken(decimal2Amount(500, 6), '0xffffffff');
+        const oraclePrice = await mining.getOraclePrice();
+        const avgTick = oraclePrice.avgTick;
+
+        await mining.connect(miner).depositWithuniToken(decimal2Amount(15000, 6), avgTick, '0xffffffff');
+        await mining.connect(tester).depositWithuniToken(decimal2Amount(1000, 6), avgTick, '0xffffffff');
+        await mining.connect(tester).depositWithuniToken(decimal2Amount(500, 6), avgTick, '0xffffffff');
     });
 
     it("check user status", async function() {
