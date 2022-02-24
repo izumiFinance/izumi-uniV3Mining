@@ -236,7 +236,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
         int56 delta = int56(avgTick) - int56(stdTick);
         delta = (delta >= 0) ? delta: -delta;
         require(delta < 2500, "TICK BIAS");
-        
+
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             rewardPool.fee
         );
@@ -277,8 +277,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
 
     function depositWithuniToken(
         uint256 uniAmount,
-        uint256 deadline,
-        int24 stdTick
+        int24 stdTick,
+        uint256 deadline
     ) external payable nonReentrant checkNormal {
         require(uniAmount >= 1e7, "TOKENUNI AMOUNT TOO SMALL");
         require(uniAmount < FixedPoints.Q96 / 3, "TOKENUNI AMOUNT TOO LARGE");
