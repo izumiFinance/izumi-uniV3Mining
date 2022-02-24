@@ -221,7 +221,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     ///    or price of uniToken / lockToken (if uniToken > lockToken)
     /// @return tickLeft
     /// @return tickRight
-    function _getPriceAndTickRange()
+    function _getPriceAndTickRange(int24 stdTick)
         private
         view
         returns (
@@ -232,6 +232,11 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
     {
         (int24 avgTick, uint160 avgSqrtPriceX96, int24 currTick, ) = swapPool
             .getAvgTickPriceWithin2Hour();
+
+        int56 delta = int56(avgTick) - int56(stdTick);
+        delta = (delta >= 0) ? delta: -delta;
+        require(delta < 2500, "TICK BIAS");
+        
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             rewardPool.fee
         );
@@ -272,7 +277,8 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
 
     function depositWithuniToken(
         uint256 uniAmount,
-        uint256 deadline
+        uint256 deadline,
+        int24 stdTick
     ) external payable nonReentrant checkNormal {
         require(uniAmount >= 1e7, "TOKENUNI AMOUNT TOO SMALL");
         require(uniAmount < FixedPoints.Q96 / 3, "TOKENUNI AMOUNT TOO LARGE");
@@ -289,7 +295,7 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
             uint160 sqrtPriceX96,
             int24 tickLeft,
             int24 tickRight
-        ) = _getPriceAndTickRange();
+        ) = _getPriceAndTickRange(stdTick);
 
         TokenStatus memory newTokenStatus;
 
