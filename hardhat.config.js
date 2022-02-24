@@ -2,6 +2,7 @@ require("@nomiclabs/hardhat-waffle");
 require("uniswap-v3-deploy-plugin");
 require('hardhat-contract-sizer');
 require("@nomiclabs/hardhat-etherscan");
+require("@nomiclabs/hardhat-truffle5");
 // require('hardhat-docgen');
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -34,7 +35,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 1000
+        runs: 200
       }
     }
   },
@@ -43,7 +44,7 @@ module.exports = {
     izumiTest: {
       url: izumiRpcUrl,
       gas: 8000000,
-      gasPrice: 20000000000,
+      gasPrice: 50000000000,
       accounts: [sk, sk2, sk3]
     },
     arbitrum: {
@@ -51,8 +52,6 @@ module.exports = {
       accounts: [sk]
     },
     polygon: {
-      gas: 8000000,
-      gasPrice: 290000000000,
       url: 'https://rpc-mainnet.maticvigil.com',
       accounts: [sk]
     },
@@ -65,7 +64,7 @@ module.exports = {
     ethereum: {
       url: "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
       gas: 7792207,
-      gasPrice: 77000000000,
+      gasPrice: 82000000000,
       accounts: [sk]
     },
   },
