@@ -62,7 +62,7 @@ async function deployPositionDescriptor(nftDescriptorLibraryAddress, weth9Addres
       NFTDescriptor: nftDescriptorLibraryAddress,
     }
   );
-  const ContractFactory = await ethers.getContractFactory(artifacts.NonfungibleTokenPositionDescriptor.abi, linkedBytecode, signer);
+  const ContractFactory = await ethers.getContractFactory(artifacts.NonfungibleTokenPositionDescriptor.abi, artifacts.NonfungibleTokenPositionDescriptor.bytecode, signer);
   const contract = await ContractFactory.deploy(weth9Address);
 
   await contract.deployed();
@@ -82,15 +82,16 @@ async function deployUniV3(wethAddr, signer) {
   const factory = await deployFactory(signer);
   const router = await deployRouter(factory.address, wethAddr, signer);
   const nftDescriptorLibrary = await deployNFTDescriptorLibrary(signer);
-  const positionDescriptor = await deployPositionDescriptor(
-    nftDescriptorLibrary.address,
-    wethAddr,
-    signer
-  );
+  // const positionDescriptor = await deployPositionDescriptor(
+  //   nftDescriptorLibrary.address,
+  //   wethAddr,
+  //   signer
+  // );
   const positionManager = await deployNonfungiblePositionManager(
     factory.address,
     wethAddr,
-    positionDescriptor.address,
+    wethAddr,
+    // positionDescriptor.address,
     signer
   );
 
