@@ -109,7 +109,7 @@ abstract contract MiningBaseVeiZi is Ownable, Multicall, ReentrancyGuard {
     /// @param provider New provider
     event ModifyProvider(address indexed rewardToken, address provider);
 
-    bool normal;
+    bool public normal;
     modifier checkNormal() {
         require(normal, "has emergency withrawed");
         _;
