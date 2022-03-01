@@ -144,6 +144,23 @@ async function collectFeeChargedAndComputeBalanceDiff(tokenMap, mining, receiver
     return delta;
 }
 
+async function collectFeeChargedAndComputeBalanceDiffWithFlag(tokenMap, mining, receiver) {
+    const beforeBalance = await getTokenBalance(tokenMap, receiver);
+    let ok = true;
+    try {
+        const tx = await mining.connect(receiver).collectFeeCharged();
+    } catch (err) {
+        ok = false;
+    }
+    const afterBalance = await getTokenBalance(tokenMap, receiver);
+    const delta = {};
+    for (const key in tokenMap) {
+        delta[key] = stringMinus(afterBalance[key], beforeBalance[key]);
+    }
+    return {delta, ok};
+}
+
+
 async function getUniswapWithdrawTokenAmount(uniPositionManager, nftId, liquidity) {
     const owner = await uniPositionManager.ownerOf(nftId);
     const managerWeb3 = new web3.eth.Contract(NonfungiblePositionManager.abi, uniPositionManager.address);
@@ -243,7 +260,7 @@ describe("test uniswap price oracle", function () {
 
         hugeAmount = '1000000000000000000000000000000';
       
-        [signer, tester, miner, receiver, provider, trader] = await ethers.getSigners();
+        [signer, tester, miner, receiver, receiver2, provider, trader] = await ethers.getSigners();
 
         // a fake weth
         const tokenFactory = await ethers.getContractFactory("TestToken");
@@ -472,6 +489,101 @@ describe("test uniswap price oracle", function () {
         const receiverDelta = await collectFeeChargedAndComputeBalanceDiff({'TOKEN0': token0, 'TOKEN1': token1}, mining, receiver);
         expect(receiverDelta['TOKEN0']).to.equal(totalFeeCharged0);
         expect(receiverDelta['TOKEN1']).to.equal(totalFeeCharged1);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
+        expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
+    });
+
+
+    it("check modify charge Receiver ", async function () {
+        
+        const userStatus = await mining.userStatus(tester.address);
+        const validVLiquidity = userStatus.validVLiquidity.toString();
+        const totalVLiquidity = (await mining.totalVLiquidity()).toString();
+        
+        let blockNumber = await ethers.provider.getBlockNumber();
+        // swaps
+
+        await movePriceDown(uniSwapRouter, trader, token0.address, token1.address, '100', leftSqrtPriceX96, decimal2Amount(100000, 6));
+        await movePriceUp(uniSwapRouter, trader, token0.address, token1.address, '100', rightSqrtPriceX96, decimal2Amount(100000, 6));
+        await movePriceDown(uniSwapRouter, trader, token0.address, token1.address, '100', leftSqrtPriceX96, decimal2Amount(100000, 6));
+        await movePriceUp(uniSwapRouter, trader, token0.address, token1.address, '100', rightSqrtPriceX96, decimal2Amount(100000, 6));
+        await movePriceDown(uniSwapRouter, trader, token0.address, token1.address, '100', leftSqrtPriceX96, decimal2Amount(100000, 6));
+        await movePriceUp(uniSwapRouter, trader, token0.address, token1.address, '100', rightSqrtPriceX96, decimal2Amount(100000, 6));
+
+        await waitUntilJustBefore(blockNumber + 20);
+
+        const tokenStatus2 = await getTokenStatus(mining, '2');
+        const uniCollectTokenAmount = await getUniswapCollectAmount(uniPositionManager, '2');
+
+        const expectToken0Remain = stringDiv(stringMul(uniCollectTokenAmount.amount0, 6), 10);
+        const expectToken0Charged = stringMinus(uniCollectTokenAmount.amount0, expectToken0Remain);
+        const expectToken1Remain = stringDiv(stringMul(uniCollectTokenAmount.amount1, 6), 10);
+        const expectToken1Charged = stringMinus(uniCollectTokenAmount.amount1, expectToken1Remain);
+
+        const deltaMap1 = await withdrawAndComputeBalanceDiff({'iZi': iZi, 'BIT': BIT, 'TOKEN0': token0, 'TOKEN1': token1}, mining, tester, '2');
+        const expectDeltaMap1 = {'iZi': '0', 'BIT': '0', 'TOKEN0': '0', 'TOKEN1': '0'};
+        blockNumber = await ethers.provider.getBlockNumber();
+
+        // reward is origin reward
+        for (const key in rewardPerBlockMap) {
+            const rewardPerBlock = rewardPerBlockMap[key];
+            const reward = stringDiv(stringMul('20', stringMul(rewardPerBlock, validVLiquidity)), totalVLiquidity);
+            expectDeltaMap1[key] = reward;
+        }
+
+        expectDeltaMap1['TOKEN0'] = stringAdd(expectDeltaMap1['TOKEN0'], expectToken0Remain);
+        expectDeltaMap1['TOKEN1'] = stringAdd(expectDeltaMap1['TOKEN1'], expectToken1Remain);
+
+        // check balance changes after withdraw
+        for (const key in deltaMap1) {
+            checkStringNumberNearlyEqual(expectDeltaMap1[key], deltaMap1[key]);
+        }
+        expect((await uniPositionManager.ownerOf('2')).toLowerCase()).to.equal(tester.address.toLowerCase());
+
+        const totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
+        const totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
+
+        expect(totalFeeCharged0).to.equal(expectToken0Charged);
+        expect(totalFeeCharged1).to.equal(expectToken1Charged);
+
+        // others cannot collect
+        const signerDelta = await collectFeeChargedAndComputeBalanceDiff({'TOKEN0': token0, 'TOKEN1': token1}, mining, signer);
+        expect(signerDelta['TOKEN0']).to.equal('0');
+        expect(signerDelta['TOKEN1']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        const testerDelta = await collectFeeChargedAndComputeBalanceDiff({'TOKEN0': token0, 'TOKEN1': token1}, mining, tester);
+        expect(testerDelta['TOKEN0']).to.equal('0');
+        expect(testerDelta['TOKEN1']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+
+        const {delta: receiver2Delta1, ok: recv2Ok1} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'TOKEN0': token0, 'TOKEN1': token1}, mining, receiver2);
+        expect(receiver2Delta1['TOKEN0']).to.equal('0');
+        expect(receiver2Delta1['TOKEN1']).to.equal('0');
+        expect(recv2Ok1).to.equal(false);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        expect(receiver.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
+
+        await mining.modifyChargeReceiver(receiver2.address);
+
+
+        const {delta: receiver2Delta2, ok: recv2Ok2} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'TOKEN0': token0, 'TOKEN1': token1}, mining, receiver2);
+        expect(receiver2Delta2['TOKEN0']).to.equal(totalFeeCharged0);
+        expect(receiver2Delta2['TOKEN1']).to.equal(totalFeeCharged1);
+        expect(recv2Ok2).to.equal(true);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
+        expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
+
+
+        const {delta: receiverDelta, ok: recv1Ok} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'TOKEN0': token0, 'TOKEN1': token1}, mining, receiver);
+        expect(receiverDelta['TOKEN0']).to.equal('0');
+        expect(receiverDelta['TOKEN1']).to.equal('0');
+        expect(recv1Ok).to.equal(false);
         expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
         expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
     });

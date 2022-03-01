@@ -31,7 +31,7 @@ const para = {
 }
 
 const web3 = getWeb3();
-const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostV2.sol/MiningFixRangeBoostV2.json');
+const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostVeiZi.sol/MiningFixRangeBoostVeiZi.json');
 
 async function main() {
     
@@ -41,6 +41,9 @@ async function main() {
 
   const owner = await mining.methods.owner().call();
   console.log('owner: ', owner);
+
+  const originEndBlock = (await mining.methods.endBlock().call()).toString();
+  console.log('origin end block: ', originEndBlock);
   
   const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
   const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
@@ -59,6 +62,9 @@ async function main() {
   // nonce += 1;
   const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
   console.log('tx: ', tx);
+
+  const newEndBlock = (await mining.methods.endBlock().call()).toString();
+  console.log('new end block: ', newEndBlock);
 }
 
 main()

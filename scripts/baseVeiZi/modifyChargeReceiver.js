@@ -11,12 +11,12 @@ const pk = secret.pk;
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyEndBlock.js \
 //     'FIXRANGE_V2_USDC_USDT_100' 
-//     150000
+//     CHARGE_RECEIVER
 //
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
-function getMiningPoolAddr(symbolOrAddress) {
+function getAddr(symbolOrAddress) {
     const prefix = symbolOrAddress.slice(0, 2);
     if (prefix.toLowerCase() === '0x') {
       return symbolOrAddress;
@@ -26,12 +26,12 @@ function getMiningPoolAddr(symbolOrAddress) {
 
 const para = {
     miningPoolSymbolOrAddress: v[2],
-    miningPoolAddr: getMiningPoolAddr(v[2]),
-    endBlock: v[3],
+    miningPoolAddr: getAddr(v[2]),
+    receiver: getAddr(v[3]),
 }
 
 const web3 = getWeb3();
-const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostV2.sol/MiningFixRangeBoostV2.json');
+const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostVeiZi.sol/MiningFixRangeBoostVeiZi.json');
 
 async function main() {
     
@@ -41,9 +41,12 @@ async function main() {
 
   const owner = await mining.methods.owner().call();
   console.log('owner: ', owner);
+
+  const originReceiver = (await mining.methods.chargeReceiver().call()).toString();
+  console.log('origin receiver: ', originReceiver);
   
-  const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
-  const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
+  const txData = await mining.methods.modifyChargeReceiver(para.receiver).encodeABI()
+  const gasLimit = await mining.methods.modifyChargeReceiver(para.receiver).estimateGas({from: owner});
   console.log('gas limit: ', gasLimit);
   const nonce = await web3.eth.getTransactionCount(owner, 'pending');
   console.log('nonce: ', nonce);
@@ -59,6 +62,9 @@ async function main() {
   // nonce += 1;
   const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
   console.log('tx: ', tx);
+
+  const newReceiver = (await mining.methods.chargeReceiver().call()).toString();
+  console.log('new receiver: ', newReceiver);
 }
 
 main()

@@ -47,6 +47,8 @@ contract MiningFixRangeBoostVeiZi is MiningBaseVeiZi, IERC721Receiver {
         uint24 fee;
     }
 
+    receive() external payable {}
+    
     constructor(
         PoolParams memory poolParams,
         RewardInfo[] memory _rewardInfos,

@@ -11,8 +11,9 @@ const pk = secret.pk;
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyEndBlock.js \
 //     'FIXRANGE_V2_USDC_USDT_100' 
-//     150000
-//
+//     0
+//     0.1
+//     18
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
@@ -27,11 +28,13 @@ function getMiningPoolAddr(symbolOrAddress) {
 const para = {
     miningPoolSymbolOrAddress: v[2],
     miningPoolAddr: getMiningPoolAddr(v[2]),
-    endBlock: v[3],
+    rewardIdx: v[3],
+    rewardAmountDecimal: v[4],
+    decimal: v[5],
 }
 
 const web3 = getWeb3();
-const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostV2.sol/MiningFixRangeBoostV2.json');
+const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostVeiZi.sol/MiningFixRangeBoostVeiZi.json');
 
 async function main() {
     
@@ -41,9 +44,13 @@ async function main() {
 
   const owner = await mining.methods.owner().call();
   console.log('owner: ', owner);
+
+  const originRewardInfo = await mining.methods.rewardInfos(para.rewardIdx).call();
+  console.log('origin reward info: ', originRewardInfo);
+  const rewardAmount = BigNumber(para.rewardAmountDecimal).times(10 ** Number(para.decimal)).toFixed(0);
   
-  const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
-  const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
+  const txData = await mining.methods.modifyRewardPerBlock(para.rewardIdx, rewardAmount).encodeABI()
+  const gasLimit = await mining.methods.modifyRewardPerBlock(para.rewardIdx, rewardAmount).estimateGas({from: owner});
   console.log('gas limit: ', gasLimit);
   const nonce = await web3.eth.getTransactionCount(owner, 'pending');
   console.log('nonce: ', nonce);
@@ -59,6 +66,9 @@ async function main() {
   // nonce += 1;
   const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
   console.log('tx: ', tx);
+
+  const newRewardInfo = await mining.methods.rewardInfos(para.rewardIdx).call();
+  console.log('new reward info: ', newRewardInfo);
 }
 
 main()

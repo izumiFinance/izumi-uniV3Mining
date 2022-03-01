@@ -131,10 +131,11 @@ async function withdrawAndComputeBalanceDiff(tokenMap, mining, tester, nftId) {
 
 async function collectFeeChargedAndComputeBalanceDiff(tokenMap, mining, receiver) {
     const beforeBalance = await getTokenBalance(tokenMap, receiver);
+    let ok = true;
     try {
         const tx = await mining.connect(receiver).collectFeeCharged();
     } catch (err) {
-        // ...
+        ok = false;
     }
     const afterBalance = await getTokenBalance(tokenMap, receiver);
     const delta = {};
@@ -142,6 +143,22 @@ async function collectFeeChargedAndComputeBalanceDiff(tokenMap, mining, receiver
         delta[key] = stringMinus(afterBalance[key], beforeBalance[key]);
     }
     return delta;
+}
+
+async function collectFeeChargedAndComputeBalanceDiffWithFlag(tokenMap, mining, receiver) {
+    const beforeBalance = await getTokenBalance(tokenMap, receiver);
+    let ok = true;
+    try {
+        const tx = await mining.connect(receiver).collectFeeCharged();
+    } catch (err) {
+        ok = false;
+    }
+    const afterBalance = await getTokenBalance(tokenMap, receiver);
+    const delta = {};
+    for (const key in tokenMap) {
+        delta[key] = stringMinus(afterBalance[key], beforeBalance[key]);
+    }
+    return {delta, ok};
 }
 
 async function getUniswapWithdrawTokenAmount(uniPositionManager, nftId, liquidity) {
@@ -226,7 +243,7 @@ async function getTokenStatus(mining, nftId) {
 
 describe("test uniswap price oracle", function () {
 
-    var signer, tester, receiver, provider, trader;
+    var signer, tester, receiver, receiver2, provider, trader;
     var iZi;
     var USDC;
     var veiZi;
@@ -247,7 +264,7 @@ describe("test uniswap price oracle", function () {
 
         hugeAmount = '1000000000000000000000000000000';
       
-        [signer, tester, miner, receiver, provider, trader] = await ethers.getSigners();
+        [signer, tester, miner, receiver, receiver2, provider, trader] = await ethers.getSigners();
 
         // a fake weth
         const tokenFactory = await ethers.getContractFactory("TestToken");
@@ -453,5 +470,110 @@ describe("test uniswap price oracle", function () {
         expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
         expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
     });
+
+
+    it("check modify charge Receiver ", async function () {
+        
+        const userStatus = await mining.userStatus(tester.address);
+        const validVLiquidity = userStatus.validVLiquidity.toString();
+        const totalVLiquidity = (await mining.totalVLiquidity()).toString();
+        
+        let blockNumber = await ethers.provider.getBlockNumber();
+        // swaps
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+
+        await waitUntilJustBefore(blockNumber + 20);
+
+        const tokenStatus2 = await getTokenStatus(mining, '2');
+        const uniWithdrawTokenAmount = await getUniswapWithdrawTokenAmount(uniPositionManager, '2', tokenStatus2.uniLiquidity);
+        const uniCollectTokenAmount = await getUniswapCollectAmount(uniPositionManager, '2', USDC.address, iZi.address);
+
+        const expectToken0Remain = stringDiv(stringMul(uniCollectTokenAmount.amount0, 6), 10);
+        const expectToken0Charged = stringMinus(uniCollectTokenAmount.amount0, expectToken0Remain);
+        const expectToken1Remain = stringDiv(stringMul(uniCollectTokenAmount.amount1, 6), 10);
+        const expectToken1Charged = stringMinus(uniCollectTokenAmount.amount1, expectToken1Remain);
+
+        const deltaMap1 = await withdrawAndComputeBalanceDiff({'iZi': iZi, 'BIT': BIT, 'USDC': USDC}, mining, tester, '2');
+        const expectDeltaMap1 = {'iZi': '0', 'BIT': '0', 'USDC': '0'};
+        blockNumber = await ethers.provider.getBlockNumber();
+
+        // reward is origin reward
+        for (const key in rewardPerBlockMap) {
+            const rewardPerBlock = rewardPerBlockMap[key];
+            const reward = stringDiv(stringMul('20', stringMul(rewardPerBlock, validVLiquidity)), totalVLiquidity);
+            expectDeltaMap1[key] = reward;
+        }
+        // console.log('token0Symbol: ', token0Symbol);
+        // console.log('token1Symbol: ', token1Symbol);
+        expectDeltaMap1[token0Symbol] = stringAdd(expectDeltaMap1[token0Symbol], uniWithdrawTokenAmount.amount0);
+        expectDeltaMap1[token1Symbol] = stringAdd(expectDeltaMap1[token1Symbol], uniWithdrawTokenAmount.amount1);
+
+        expectDeltaMap1[token0Symbol] = stringAdd(expectDeltaMap1[token0Symbol], uniCollectTokenAmount.amount0);
+        expectDeltaMap1[token1Symbol] = stringAdd(expectDeltaMap1[token1Symbol], uniCollectTokenAmount.amount1);
+
+        // minus fee charged
+        expectDeltaMap1[token0Symbol] = stringMinus(expectDeltaMap1[token0Symbol], expectToken0Charged);
+        expectDeltaMap1[token1Symbol] = stringMinus(expectDeltaMap1[token1Symbol], expectToken1Charged);
+        // console.log('expect delta map1: ', expectDeltaMap1);
+
+
+        // check balance changes after withdraw
+        for (const key in deltaMap1) {
+            checkStringNumberNearlyEqual(expectDeltaMap1[key], deltaMap1[key]);
+        }
+
+        const totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
+        const totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
+
+        expect(totalFeeCharged0).to.equal(expectToken0Charged);
+        expect(totalFeeCharged1).to.equal(expectToken1Charged);
+
+        // others cannot collect
+        const signerDelta = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, signer);
+        expect(signerDelta['iZi']).to.equal('0');
+        expect(signerDelta['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        const testerDelta = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, tester);
+        expect(testerDelta['iZi']).to.equal('0');
+        expect(testerDelta['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+
+        const {delta: receiver2Delta1, ok: recv2Ok1} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
+        expect(receiver2Delta1['iZi']).to.equal('0');
+        expect(receiver2Delta1['USDC']).to.equal('0');
+        expect(recv2Ok1).to.equal(false);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        expect(receiver.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
+
+        await mining.modifyChargeReceiver(receiver2.address);
+
+
+        const {delta: receiver2Delta2, ok: recv2Ok2} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
+        expect(receiver2Delta2[token0Symbol]).to.equal(totalFeeCharged0);
+        expect(receiver2Delta2[token1Symbol]).to.equal(totalFeeCharged1);
+        expect(recv2Ok2).to.equal(true);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
+        expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
+
+
+        const {delta: receiverDelta, ok: recv1Ok} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver);
+        expect(receiverDelta[token0Symbol]).to.equal('0');
+        expect(receiverDelta[token1Symbol]).to.equal('0');
+        expect(recv1Ok).to.equal(false);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
+        expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
+    });
+
 
 });
