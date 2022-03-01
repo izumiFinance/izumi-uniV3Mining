@@ -248,7 +248,7 @@ async function getTokenStatus(mining, nftId) {
 
 describe("test uniswap price oracle", function () {
 
-    var signer, tester, receiver, provider, trader;
+    var signer, tester, receiver, receiver2, provider, trader;
     var iZi;
     var USDC;
     var veiZi;
@@ -267,7 +267,7 @@ describe("test uniswap price oracle", function () {
 
         hugeAmount = '1000000000000000000000000000000';
       
-        [signer, tester, miner, receiver, provider, trader] = await ethers.getSigners();
+        [signer, tester, miner, receiver, receiver2, provider, trader] = await ethers.getSigners();
 
         // a fake weth
         const tokenFactory = await ethers.getContractFactory("TestToken");
@@ -460,4 +460,101 @@ describe("test uniswap price oracle", function () {
         expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
     });
 
+
+    it("check modify charge  receiver", async function () {
+        
+        const userStatus = await mining.userStatus(tester.address);
+        const validVLiquidity = userStatus.validVLiquidity.toString();
+        const totalVLiquidity = (await mining.totalVLiquidity()).toString();
+        
+        let blockNumber = await ethers.provider.getBlockNumber();
+        // swaps
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+        await sellTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', endPriceSqrtX96, decimal2Amount(100000, 18));
+        await buyTokenLock(uniSwapRouter, trader, USDC.address, iZi.address, '3000', startPriceSqrtX96, decimal2Amount(100000, 6));
+
+        await waitUntilJustBefore(blockNumber + 20);
+
+        const tokenStatus2 = await getTokenStatus(mining, '2');
+        const uniWithdrawTokenAmount = await getUniswapWithdrawTokenAmount(uniPositionManager, '2', tokenStatus2.uniLiquidity, USDC.address, iZi.address);
+        const uniCollectTokenAmount = await getUniswapCollectAmount(uniPositionManager, '2', USDC.address, iZi.address);
+
+        const expectUniRemain = stringDiv(stringMul(uniCollectTokenAmount.amountUni, 6), 10);
+        const expectUniCharged = stringMinus(uniCollectTokenAmount.amountUni, expectUniRemain);
+        const expectLockRemain = stringDiv(stringMul(uniCollectTokenAmount.amountLock, 6), 10);
+        const expectLockCharged = stringMinus(uniCollectTokenAmount.amountLock, expectLockRemain);
+
+        const deltaMap1 = await withdrawAndComputeBalanceDiff({'iZi': iZi, 'BIT': BIT, 'USDC': USDC}, mining, tester, '2');
+        const expectDeltaMap1 = {'iZi': '0', 'BIT': '0', 'USDC': '0'};
+        blockNumber = await ethers.provider.getBlockNumber();
+
+        // reward is origin reward
+        for (const key in rewardPerBlockMap) {
+            const rewardPerBlock = rewardPerBlockMap[key];
+            const reward = stringDiv(stringMul('20', stringMul(rewardPerBlock, validVLiquidity)), totalVLiquidity);
+            expectDeltaMap1[key] = reward;
+        }
+        expectDeltaMap1['iZi'] = stringAdd(expectDeltaMap1['iZi'], tokenStatus2.lockAmount);
+        expectDeltaMap1['iZi'] = stringAdd(expectDeltaMap1['iZi'], uniWithdrawTokenAmount.amountLock);
+        expectDeltaMap1['USDC'] = stringAdd(expectDeltaMap1['USDC'], uniWithdrawTokenAmount.amountUni);
+
+        expectDeltaMap1['iZi'] = stringAdd(expectDeltaMap1['iZi'], uniCollectTokenAmount.amountLock);
+        expectDeltaMap1['USDC'] = stringAdd(expectDeltaMap1['USDC'], uniCollectTokenAmount.amountUni);
+
+        // minus fee charged
+        expectDeltaMap1['iZi'] = stringMinus(expectDeltaMap1['iZi'], expectLockCharged);
+        expectDeltaMap1['USDC'] = stringMinus(expectDeltaMap1['USDC'], expectUniCharged);
+
+        // check balance changes after withdraw
+        for (const key in deltaMap1) {
+            checkStringNumberNearlyEqual(expectDeltaMap1[key], deltaMap1[key]);
+        }
+
+        const totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
+        const totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
+
+        const uniFeeCharged = (USDC.address.toLowerCase() < iZi.address.toLowerCase()) ? totalFeeCharged0: totalFeeCharged1;
+        const lockFeeCharged = (iZi.address.toLowerCase() < USDC.address.toLowerCase()) ? totalFeeCharged0: totalFeeCharged1;
+
+        expect(uniFeeCharged).to.equal(expectUniCharged);
+        expect(lockFeeCharged).to.equal(expectLockCharged);
+
+        // others cannot collect
+        const signerDelta = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, signer);
+        expect(signerDelta['iZi']).to.equal('0');
+        expect(signerDelta['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        const testerDelta = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, tester);
+        expect(testerDelta['iZi']).to.equal('0');
+        expect(testerDelta['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        const receiver2Delta1 = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
+        expect(receiver2Delta1['iZi']).to.equal('0');
+        expect(receiver2Delta1['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        expect(receiver.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
+        await mining.modifyChargeReceiver(receiver2.address);
+        expect(receiver2.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
+
+        const receiver1Delta1 = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, receiver);
+        expect(receiver1Delta1['iZi']).to.equal('0');
+        expect(receiver1Delta1['USDC']).to.equal('0');
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
+        const receiver2Delta2 = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
+        expect(receiver2Delta2['iZi']).to.equal(lockFeeCharged);
+        expect(receiver2Delta2['USDC']).to.equal(uniFeeCharged);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal('0');
+        expect((await mining.totalFeeCharged1()).toString()).to.equal('0');
+    });
 });
