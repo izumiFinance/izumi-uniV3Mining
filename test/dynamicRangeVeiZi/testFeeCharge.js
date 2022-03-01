@@ -558,6 +558,12 @@ describe("test uniswap price oracle", function () {
 
         await mining.modifyChargeReceiver(receiver2.address);
 
+        const {delta: receiverDelta0, ok: recvOk0} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver);
+        expect(receiverDelta0[token0Symbol]).to.equal('0');
+        expect(receiverDelta0[token1Symbol]).to.equal('0');
+        expect(recvOk0).to.equal(false);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
 
         const {delta: receiver2Delta2, ok: recv2Ok2} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
         expect(receiver2Delta2[token0Symbol]).to.equal(totalFeeCharged0);
