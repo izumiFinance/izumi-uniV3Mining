@@ -40,10 +40,16 @@ contract TestVeiZi {
     }
 
     function stakingInfo(address user) external view returns(uint256 nftId, uint256 stakingId, uint256 amount) {
+        nftId = staking[user].nftId;
         amount = staking[user].amount;
         uint256 end = staking[user].end;
         stakingId = staking[user].stakingId;
-        nftId = staking[user].nftId;
         amount = amount / MAXTIME * (max(end, block.number) - block.number);
+    }
+
+    function unStake() external {
+        staking[msg.sender].amount = 0;
+        staking[msg.sender].nftId = 0;
+        staking[msg.sender].stakingId = 0;
     }
 }
