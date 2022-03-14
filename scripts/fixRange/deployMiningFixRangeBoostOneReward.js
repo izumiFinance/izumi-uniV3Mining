@@ -27,7 +27,7 @@ var para = {
     rewardTokenSymbol: v[5],
     rewardTokenAddress: contracts[net][v[5]],
     rewardPerBlock: v[6],
-    rewardProvider: v[7],
+    rewardProvider: contracts[net][v[7]],
 
     startBlock: v[8],
     endBlock: v[9],
@@ -134,29 +134,37 @@ async function main() {
 
   console.log('iziAddr: ', iziAddr);
 
-  // const mining = await Mining.deploy(
-  //   {
-  //     uniV3NFTManager: contracts[net].nftManager,
-  //     token0: para.token0Address,
-  //     token1: para.token1Address,
-  //     fee: para.fee,
-  //   },
-  //   [{
-  //     rewardToken: para.rewardTokenAddress,
-  //     provider: para.rewardProvider,
-  //     accRewardPerShare: 0,
-  //     rewardPerBlock: para.rewardPerBlock,
-  //   }],
-  //   iziAddr,
-  //   tickUpper,
-  //   tickLower,
-  //   para.startBlock, para.endBlock,
-  //   para.feeChargePercent,
-  //   para.chargeReceiver
-  // );
-  // await mining.deployed();
+  console.log('deployer: ', deployer.address);
+
+  const args = [
+    {
+      uniV3NFTManager: contracts[net].nftManager,
+      token0: para.token0Address,
+      token1: para.token1Address,
+      fee: para.fee,
+    },
+    [{
+      rewardToken: para.rewardTokenAddress,
+      provider: para.rewardProvider,
+      accRewardPerShare: 0,
+      rewardPerBlock: para.rewardPerBlock,
+    }],
+    iziAddr,
+    tickUpper,
+    tickLower,
+    para.startBlock, para.endBlock,
+    para.feeChargePercent,
+    para.chargeReceiver
+  ]
+
+  console.log('args: ', args);
+
+  const mining = await Mining.deploy(
+    ...args
+  );
+  await mining.deployed();
   
-  // console.log("MiningFixRangeBoost Contract Address: " , mining.address);
+  console.log("MiningFixRangeBoost Contract Address: " , mining.address);
 
 }
 
