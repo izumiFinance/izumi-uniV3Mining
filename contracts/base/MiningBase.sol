@@ -397,6 +397,14 @@ abstract contract MiningBase is Ownable, Multicall, ReentrancyGuard {
         );
     }
 
+    function modifyStartBlock(uint256 _startBlock) external onlyOwner {
+        require(startBlock > block.number, 'has started!');
+        require(_startBlock > block.number, 'Too Early!');
+        require(_startBlock < endBlock, 'Too Late!');
+        startBlock = _startBlock;
+        lastTouchBlock = _startBlock;
+    }
+
 
     /// @notice Set new reward provider.
     /// @param rewardIdx which rewardInfo to modify
