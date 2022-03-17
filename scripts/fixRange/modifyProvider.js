@@ -1,54 +1,65 @@
 const hardhat = require("hardhat");
 const contracts = require("../deployed.js");
+const BigNumber = require('bignumber.js');
 
-const factoryJson = require(contracts.factoryJson);
-const factoryAddress = contracts.factory;
+const {getWeb3} = require('../libraries/getWeb3');
+const {getContractABI} = require('../libraries/getContractJson');
 
+const secret = require('../../.secret.js');
+const pk = secret.pk;
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node modifyProvider.js \
+//     node modifyEndBlock.js \
 //     'FIXRANGE_USDC_USDT_100' 
 //     0
-//
+//     0x...
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getMiningPoolAddr(symbolOrAddress) {
+  const prefix = symbolOrAddress.slice(0, 2);
+  if (prefix.toLowerCase() === '0x') {
+    return symbolOrAddress;
+  }
+  return contracts[net][symbolOrAddress];
+}
 
 const para = {
     miningPoolSymbol: v[2],
-    miningPoolAddr: contracts[net][v[2]],
+    miningPoolAddr: getMiningPoolAddr(v[2]),
     rewardIdx: v[3],
+    providerAddress: v[4],
 }
 
-async function getRewardInfo(mining, idx) {
-    var rewardToken, provider, accRewardPerShare, rewardPerBlock;
-    [rewardToken, provider, accRewardPerShare, rewardPerBlock] = await mining.rewardInfos(idx);
-    return {
-        rewardToken: rewardToken,
-        provider: provider,
-        accRewardPerShare: accRewardPerShare.toString(),
-        rewardPerBlock: rewardPerBlock.toString()
-    };
-}
+const web3 = getWeb3();
+const miningABI = getContractABI(__dirname + '/../../artifacts/contracts/miningFixRangeBoost/MiningFixRangeBoostV2.sol/MiningFixRangeBoostV2.json');
 
-async function attachToken(address) {
-    var tokenFactory = await hardhat.ethers.getContractFactory("TestToken");
-    var token = tokenFactory.attach(address);
-    return token;
-}
 async function main() {
+
+  console.log("Paramters: ");
+  for ( var i in para) { console.log("    " + i + ": " + para[i]); }
     
-  const [deployer, tester, newProvider] = await hardhat.ethers.getSigners();
+  const mining = new web3.eth.Contract(miningABI, para.miningPoolAddr);
 
-  const Mining = await hardhat.ethers.getContractFactory("MiningFixRangeBoost");
-  const mining = Mining.attach(para.miningPoolAddr);
+  console.log('addr: ', para.miningPoolAddr);
 
-  var rewardInfo = await getRewardInfo(mining, para.rewardIdx);
-  console.log('rewardInfo: ', rewardInfo);
-  var token = await attachToken(rewardInfo.rewardToken);
-  await token.connect(newProvider).approve(mining.address, '1000000000000000000000000000000');
-
-  tx = await mining.modifyProvider(para.rewardIdx, newProvider.address);
+  const owner = await mining.methods.owner().call();
+  console.log('owner: ', owner);
+  
+  const txData = await mining.methods.modifyProvider(para.rewardIdx, para.providerAddress).encodeABI()
+  const gasLimit = await mining.methods.modifyProvider(para.rewardIdx, para.providerAddress).estimateGas({from: owner});
+  console.log('gas limit: ', gasLimit);
+  const signedTx = await web3.eth.accounts.signTransaction(
+      {
+          // nonce: 0,
+          to: para.miningPoolAddr,
+          data:txData,
+          gas: BigNumber(gasLimit * 1.1).toFixed(0, 2),
+      }, 
+      pk
+  );
+  // nonce += 1;
+  const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
   console.log('tx: ', tx);
 }
 

@@ -6,7 +6,7 @@ const {getWeb3} = require('../libraries/getWeb3');
 const {getContractABI} = require('../libraries/getContractJson');
 
 const secret = require('../../.secret.js');
-const pk = secret.pk;
+const pk = secret.pk; 
 // example
 // HARDHAT_NETWORK='izumiTest' \
 //     node modifyEndBlock.js \

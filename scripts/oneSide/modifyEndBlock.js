@@ -35,23 +35,35 @@ async function main() {
 
   const owner = await mining.methods.owner().call();
   console.log('owner: ', owner);
+
+  const originEndBlock = (await mining.methods.endBlock().call()).toString();
+  console.log('originEndBlock: ', originEndBlock);
+
+  try {
   
-  const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
-  const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
-  console.log('gas limit: ', gasLimit);
-  const signedTx = await web3.eth.accounts.signTransaction(
-      {
-          // nonce: 0,
-          to: para.miningPoolAddr,
-          data:txData,
-          gas: BigNumber(gasLimit * 1.1).toFixed(0, 2),
-          // gasPrice: 148000000000,
-      }, 
-      pk
-  );
-  // nonce += 1;
-  const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-  console.log('tx: ', tx);
+    const txData = await mining.methods.modifyEndBlock(para.endBlock).encodeABI()
+    const gasLimit = await mining.methods.modifyEndBlock(para.endBlock).estimateGas({from: owner});
+    console.log('gas limit: ', gasLimit);
+    const signedTx = await web3.eth.accounts.signTransaction(
+        {
+            // nonce: 0,
+            to: para.miningPoolAddr,
+            data:txData,
+            gas: BigNumber(gasLimit * 1.1).toFixed(0, 2),
+            // gasPrice: 148000000000,
+        }, 
+        pk
+    );
+    // nonce += 1;
+    const tx = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+    console.log('tx: ', tx);
+  } catch (err) {
+    console.log('error: ', err);
+  }
+
+
+  const currentEndBlock = (await mining.methods.endBlock().call()).toString();
+  console.log('EndBlock: ', currentEndBlock);
 }
 
 main()

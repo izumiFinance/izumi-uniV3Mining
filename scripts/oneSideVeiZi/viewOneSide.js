@@ -11,10 +11,17 @@ var sleep = require('sleep');
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getAddr(symbolOrAddress) {
+  const prefix = symbolOrAddress.slice(0, 2);
+  if (prefix.toLowerCase() === '0x') {
+    return symbolOrAddress;
+  }
+  return contracts[net][symbolOrAddress];
+}
 
 const para = {
     miningPoolSymbol: v[2],
-    miningPoolAddr: contracts[net][v[2]],
+    miningPoolAddr: getAddr(v[2]),
     userAddr: v[3],
 }
 
@@ -106,7 +113,8 @@ async function main() {
     const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
     console.log('blocknumber: ', blockNumber, '/', blockNumber2, ' ', reward);
     console.log('validVL: ', userStatus.validVLiquidity, 'vliquidity: ', userStatus.vLiquidity, ' veiZi: ', userStatus.veiZi, 'validVe: ', userStatus.validVeiZi);
-    console.log('totalV: ', meta.totalVLiquidity, ' totalValidVeiZi: ', meta.totalValidVeiZi, ' endblock: ', meta.endBlock, ' totalLock: ', meta.totalLock);
+    console.log('totalV: ', meta.totalVLiquidity, ' totalValidVeiZi: ', meta.totalValidVeiZi, ' totalLock: ', meta.totalLock);
+    console.log('startblock: ', meta.startBlock, ' endblock: ', meta.endBlock);
     
     console.log('---------------------------------');
     sleep.sleep(1);

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "eth-revert-reason": "^1.0.3",
+    "sleep": "^6.3.0",
     "uniswap": "^0.0.1"
   },
   "devDependencies": {

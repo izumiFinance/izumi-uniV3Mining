@@ -61,6 +61,7 @@ contract MiningFixRangeBoostV2 is MiningBase, IERC721Receiver {
         uint24 fee;
     }
 
+    receive() external payable {}
 
     constructor(
         PoolParams memory poolParams,

@@ -17,10 +17,17 @@ const pk = secret.pk;
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getMiningPoolAddr(symbolOrAddress) {
+  const prefix = symbolOrAddress.slice(0, 2);
+  if (prefix.toLowerCase() === '0x') {
+    return symbolOrAddress;
+  }
+  return contracts[net][symbolOrAddress];
+}
 
 const para = {
     miningPoolSymbol: v[2],
-    miningPoolAddr: contracts[net][v[2]],
+    miningPoolAddr: getMiningPoolAddr(v[2]),
     rewardIdx: v[3],
     rewardPerBlockDecimal: v[4],
     rewardTokenDecimal: v[5],

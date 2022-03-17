@@ -18,6 +18,25 @@ const para = {
     miningPoolAddr: contracts[net][v[2]],
 }
 
+async function getBalance(user, tokens) {
+  balance = [];
+  for (var tokenAddr of tokens) {
+      console.log('token addr: ', tokenAddr);
+
+      if (BigNumber(tokenAddr).eq('0')) {
+        balance.push({_hex:'0x0'});
+      } else if (tokenAddr != weth) {
+        var token = await attachToken(tokenAddr);
+        var b = await token.balanceOf(user.address);
+        balance.push(b);
+      } else {
+        var b = await ethers.provider.getBalance(user.address);
+        balance.push(b);
+      }
+  }
+  balance = balance.map((b)=>BigNumber(b._hex));
+  return balance;
+}
 
 async function main() {
     

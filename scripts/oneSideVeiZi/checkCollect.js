@@ -5,7 +5,7 @@ const { ethers } = require("hardhat");
 const { getWeb3 } = require("../libraries/getWeb3")
 // example
 // HARDHAT_NETWORK='izumiTest' \
-//     node checkWithdraw.js \
+//     node checkCollect.js \
 //     'ONESIDE_WETH9_YIN_3000' 1905
 //
 const v = process.argv
@@ -24,7 +24,6 @@ const weth = contracts[net].WETH9
 const para = {
     miningPoolSymbol: v[2],
     miningPoolAddr: getAddr(v[2]),
-    nftId: v[3],
 }
 
 async function attachToken(address) {
@@ -61,21 +60,14 @@ async function getMeta(mining) {
       totalValidVeiZi: meta.totalValidVeiZi_.toString(),
   }
 }
-async function getTokenStatus(mining, nftId) {
-  const ts = await mining.tokenStatus(nftId);
-  return {
-      nftId: ts.nftId.toString(),
-      uniLiquidity: ts.uniLiquidity.toString(),
-      lockAmount: ts.lockAmount.toString(),
-      vLiquidity: ts.vLiquidity.toString()
-  };
-}
 
 async function getUserStatus(mining, userAddr) {
     const us = await mining.userStatus(userAddr);
     return {
         vLiquidity: us.vLiquidity.toString(),
         validVLiquidity: us.validVLiquidity.toString(),
+        veiZi: us.veiZi.toString(),
+        validVeiZi: us.validVeiZi.toString(),
     }
 }
 
@@ -184,11 +176,8 @@ async function main() {
   var totalFeeCharged0 = (await mining.totalFeeCharged0()).toString();
   var totalFeeCharged1 = (await mining.totalFeeCharged1()).toString();
 
-  var collectTokens = [meta.uniToken, meta.lockToken];
-  var amountNoDecimal = [
-      await getNumNoDecimal(meta.uniToken, 1),
-      await getNumNoDecimal(meta.lockToken, 1),
-  ];
+  var collectTokens = [];
+  var amountNoDecimal = [];
 
   var rewardInfosLen = await mining.rewardInfosLen();
   console.log('rewardInfosLen: ', rewardInfosLen);
@@ -212,25 +201,6 @@ async function main() {
 
   console.log('total fee charged0: ', totalFeeCharged0);
   console.log('total fee charged1: ', totalFeeCharged1);
-
-  const id = para.nftId;
-  try {
-  const uniswapFee = await getUniswapCollectAmount(id, meta.uniToken, meta.lockToken);
-  console.log('uni fee: ', uniswapFee.amountUni);
-  console.log('lock fee: ', uniswapFee.amountLock);
-  } catch(err) {
-      console.log(err);
-  }
-
-  const ts = await getTokenStatus(mining, id);
-  try {
-  const uniswapUnstake = await getUniswapWithdrawTokenAmount(id, ts.uniLiquidity, meta.uniToken, meta.lockToken);
-  console.log('uni amount in uni: ', uniswapUnstake.amountUni);
-  console.log('lock amount in uni: ', uniswapUnstake.amountLock);
-  } catch(err) {
-      console.log(err)
-  }
-  console.log('lock amount in oneside: ', ts.lockAmount);
   
   const blockNumber = await hardhat.ethers.provider.getBlockNumber();
   let reward = await mining.pendingRewards(tester.address);
@@ -242,14 +212,11 @@ async function main() {
   const userStatusBefore = await getUserStatus(mining, tester.address);
   console.log('user vLiquidity before withdraw: ', userStatusBefore.vLiquidity);
   console.log('user validVLiquidity before withdraw: ', userStatusBefore.validVLiquidity);
+  console.log('user veiZi before withdraw: ', userStatusBefore.veiZi);
+  console.log('user validVeiZi before withdraw: ', userStatusBefore.validVeiZi);
 
-  try{
-
-  var tx = await mining.connect(tester).withdraw(id, false);
+  var tx = await mining.connect(tester).collectAllTokens();
   console.log(tx);
-  }catch(err) {
-      console.log(err);
-  }
   
   const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
 
@@ -274,8 +241,9 @@ async function main() {
   console.log('totalVLiquidity: ', meta.totalVLiquidity, ' ', metaAfter.totalVLiquidity);
   console.log('totalValidVeiZi: ', meta.totalValidVeiZi, ' ', metaAfter.totalValidVeiZi);
   const userAfter = await getUserStatus(mining, tester.address);
-  console.log('vLiquidity: ', ts.vLiquidity);
   console.log('user vLiquidity: ', userStatusBefore.vLiquidity, ' ', userAfter.vLiquidity);
+  console.log('user veiZi after withdraw: ', userStatusBefore.veiZi, ' ' , userAfter.veiZi);
+  console.log('user validVeiZi after withdraw: ', userStatusBefore.validVeiZi, ' ' , userAfter.validVeiZi);
 }
 
 main()

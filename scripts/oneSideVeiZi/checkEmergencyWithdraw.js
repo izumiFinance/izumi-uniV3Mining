@@ -168,9 +168,15 @@ async function getUniswapWithdrawTokenAmount(nftId, liquidity, tokenUni, tokenLo
     }
 }
 
+async function getNftOwner(nftId) {
+    const managerWeb3 = new web3.eth.Contract(NonfungiblePositionManager.abi, nftPositionMangerAddress);
+    return await managerWeb3.methods.ownerOf(nftId).call();
+}
+
 async function main() {
     
-  const [deployer, tester] = await hardhat.ethers.getSigners();
+  let [deployer, tester] = await hardhat.ethers.getSigners();
+
   console.log('deployer: ', deployer.address);
   console.log('tester: ', tester.address);
 
@@ -243,14 +249,18 @@ async function main() {
   console.log('user vLiquidity before withdraw: ', userStatusBefore.vLiquidity);
   console.log('user validVLiquidity before withdraw: ', userStatusBefore.validVLiquidity);
 
+  const originNftOwner = await getNftOwner(para.nftId);
+  console.log('origin nft owner: ', originNftOwner);
   try{
 
-  var tx = await mining.connect(tester).withdraw(id, false);
+  var tx = await mining.connect(deployer).emergenceWithdraw(para.nftId);
   console.log(tx);
   }catch(err) {
       console.log(err);
   }
   
+  const afterNftOwner = await getNftOwner(para.nftId);
+  console.log('after nft owner: ', afterNftOwner);
   const blockNumber2 = await hardhat.ethers.provider.getBlockNumber();
 
   var currBalance = await getBalance(tester, collectTokens);
