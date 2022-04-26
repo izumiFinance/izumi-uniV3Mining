@@ -67,6 +67,12 @@ module.exports = {
       gasPrice: 82000000000,
       accounts: [sk]
     },
+    bscTest: {
+      url: 'https://data-seed-prebsc-2-s1.binance.org:8545/',
+      accounts: [sk],
+      // gas: 90000000,
+      gasPrice: 10000000000,
+    },
   },
   docgen: {
     path: './docs',
