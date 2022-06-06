@@ -34,7 +34,7 @@ var para = {
     rewardTokenSymbol: v[5],
     rewardTokenAddress: contracts[net][v[5]],
     rewardPerBlock: v[6],
-    rewardProvider: contracts[net][v[7]],
+    rewardProvider: getAddr(v[7]),
 
     startBlock: v[8],
     endBlock: v[9],
