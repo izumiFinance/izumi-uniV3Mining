@@ -89,6 +89,8 @@ async function approve(token, account, destAddr, amount) {
 }
 
 async function main() {
+
+  console.log('--------------------------------')
     
   const [deployer] = await hardhat.ethers.getSigners();
 
