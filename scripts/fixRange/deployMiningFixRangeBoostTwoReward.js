@@ -16,6 +16,13 @@ const BigNumber = require("bignumber.js");
 const v = process.argv
 const net = process.env.HARDHAT_NETWORK
 
+function getAddress(symbolOrAddress) {
+  const prefix = symbolOrAddress.slice(0, 2);
+  if (prefix.toLowerCase() === '0x') {
+    return symbolOrAddress;
+  }
+  return contracts[net][symbolOrAddress];
+}
 
 var para = {
     token0Symbol: v[2],
@@ -27,12 +34,12 @@ var para = {
     rewardTokenSymbol0: v[5],
     rewardTokenAddress0: contracts[net][v[5]],
     rewardPerBlock0: v[6],
-    rewardProvider0: contracts[net][v[7]],
+    rewardProvider0: getAddress(v[7]),
 
     rewardTokenSymbol1: v[8],
     rewardTokenAddress1: contracts[net][v[8]],
     rewardPerBlock1: v[9],
-    rewardProvider1: contracts[net][v[10]],
+    rewardProvider1: getAddress(v[7]),
 
     startBlock: v[11],
     endBlock: v[12],
@@ -41,7 +48,7 @@ var para = {
 
     boost: v[15],
     feeChargePercent: v[16],
-    chargeReceiver: contracts[net][v[17]],
+    chargeReceiver: getAddress(v[17]),
 }
 
 
