@@ -477,7 +477,10 @@ describe("test uniswap price oracle", function () {
         const rewardMap2 = await getCollectReward({'iZi': iZi, 'BIT': BIT}, mining, tester);
         blockNumber = await ethers.provider.getBlockNumber();
 
-        const baseVLiquidity = stringDiv(stringMul(userStatus1.validVLiquidity.toString(), '4'), '10');
+        console.log('userstatus1.validVLiquidity: ', userStatus1.validVLiquidity.toString())
+        console.log('userstatus1.vLiquidity: ', userStatus1.vLiquidity.toString())
+
+        const baseVLiquidity = stringDiv(stringMul(userStatus1.vLiquidity.toString(), '4'), '10');
 
         // reward become base reward after unstaking
         for (const key in rewardMap2) {
@@ -563,7 +566,7 @@ describe("test uniswap price oracle", function () {
         expect(stakingInfo2.nftId).to.equal('2');
         expect(stakingInfo2.stakingId).to.equal('3');
 
-        const baseVLiquidity = stringDiv(stringMul(userStatus1.validVLiquidity.toString(), '4'), '10');
+        const baseVLiquidity = stringDiv(stringMul(userStatus1.vLiquidity.toString(), '4'), '10');
 
         // reward become base reward after unstaking
         for (const key in rewardMap2) {

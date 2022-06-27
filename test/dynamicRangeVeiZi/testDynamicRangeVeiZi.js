@@ -483,6 +483,7 @@ describe("test uniswap price oracle", function () {
         expectDeltaMap1[token1Symbol] = stringAdd(expectDeltaMap1[token1Symbol], uniWithdrawTokenAmount.amount1);
 
         for (const key in deltaMap1) {
+            console.log(key, ' ', expectDeltaMap1[key], ' ' , deltaMap1[key])
             checkStringNumberNearlyEqual(expectDeltaMap1[key], deltaMap1[key]);
         }
 

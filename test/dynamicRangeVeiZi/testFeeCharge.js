@@ -524,6 +524,7 @@ describe("test uniswap price oracle", function () {
 
         // check balance changes after withdraw
         for (const key in deltaMap1) {
+            console.log(key, ' ' , expectDeltaMap1[key], ' ', deltaMap1[key])
             checkStringNumberNearlyEqual(expectDeltaMap1[key], deltaMap1[key]);
         }
 
@@ -532,6 +533,8 @@ describe("test uniswap price oracle", function () {
 
         expect(totalFeeCharged0).to.equal(expectToken0Charged);
         expect(totalFeeCharged1).to.equal(expectToken1Charged);
+        console.log('totalFeeCharged0: ', totalFeeCharged0, expectToken0Charged)
+        console.log('totalFeeCharged1: ', totalFeeCharged1, expectToken1Charged)
 
         // others cannot collect
         const signerDelta = await collectFeeChargedAndComputeBalanceDiff({'iZi': iZi, 'USDC': USDC}, mining, signer);
@@ -556,7 +559,23 @@ describe("test uniswap price oracle", function () {
 
         expect(receiver.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
 
+        // others failed to modify charge receiver
+        try {
+        await mining.connect(tester).modifyChargeReceiver(receiver2.address);
+        } catch (err) {
+            console.log('err: ', err)
+        }
+        expect(receiver.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
+
+        const receiver2TryButFail2 = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver2);
+        expect(receiver2TryButFail2.delta['iZi']).to.equal('0');
+        expect(receiver2TryButFail2.delta['USDC']).to.equal('0');
+        expect(receiver2TryButFail2.ok).to.equal(false);
+        expect((await mining.totalFeeCharged0()).toString()).to.equal(totalFeeCharged0);
+        expect((await mining.totalFeeCharged1()).toString()).to.equal(totalFeeCharged1);
+
         await mining.modifyChargeReceiver(receiver2.address);
+        expect(receiver2.address.toLowerCase()).to.equal((await mining.chargeReceiver()).toLowerCase());
 
         const {delta: receiverDelta0, ok: recvOk0} = await collectFeeChargedAndComputeBalanceDiffWithFlag({'iZi': iZi, 'USDC': USDC}, mining, receiver);
         expect(receiverDelta0[token0Symbol]).to.equal('0');
