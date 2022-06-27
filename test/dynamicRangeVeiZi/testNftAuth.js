@@ -401,7 +401,7 @@ describe("test uniswap price oracle", function () {
     });
 
 
-    it("check withdraw/collec/deposit after emergencyWithdraw", async function () {
+    it("check withdraw/collect after emergencyWithdraw", async function () {
         
         let blockNumber = await ethers.provider.getBlockNumber();
         // swaps
@@ -437,6 +437,14 @@ describe("test uniswap price oracle", function () {
             expect(deltaMap2[key]).to.equal('0');
         }
         expect(ok2).to.equal(false);
+
+
+        const {reward: deltaMapOfCollect, ok: okOfCollect} = await getCollectReward({'iZi': iZi, 'BIT': BIT, 'USDC': USDC}, mining, tester, '3');
+        for (const key in rewardPerBlockMap) {
+            expect(deltaMapOfCollect[key]).to.equal('0');
+        }
+        expect(okOfCollect).to.equal(false);
+        
 
         // meta data unchanged after failed withdraw
         expect(totalVLiquidity).to.equal((await mining.totalVLiquidity()).toString());

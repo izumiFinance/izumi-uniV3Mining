@@ -395,8 +395,6 @@ describe("test uniswap price oracle", function () {
         const {ok: ok} = await getCollectReward({'iZi': iZi, 'BIT': BIT, 'USDC': USDC}, mining, tester, '3');
         expect(ok).to.equal(true);
 
-
-
         const userStatus = await mining.userStatus(tester.address);
         expect(userStatus.vLiquidity.toString()).to.equal(stringAdd(tokenStatus2.vLiquidity, tokenStatus3.vLiquidity)); // unchanged
         const totalVLiquidity = (await mining.totalVLiquidity()).toString();
@@ -424,6 +422,13 @@ describe("test uniswap price oracle", function () {
         }
         expect(okOfWithdraw).to.equal(false);
 
+
+        const oraclePrice = await mining.getOraclePrice();
+        try {
+        await mining.connect(tester).deposit(decimal2Amount(5000, token0Decimal), decimal2Amount(5000, token1Decimal), oraclePrice.avgTick);
+        } catch(err){
+            console.log(err);
+        }
 
         // meta data unchanged after failed withdraw
         expect(totalVLiquidity).to.equal((await mining.totalVLiquidity()).toString());
