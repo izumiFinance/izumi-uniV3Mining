@@ -172,10 +172,13 @@ contract MiningDynamicRangeBoostVeiZi is MiningBaseVeiZi {
             int24 tickRight
         )
     {
-        (int24 avgTick, , , ) = swapPool.getAvgTickPriceWithin2Hour();
+        (int24 avgTick, , int currentTick, ) = swapPool.getAvgTickPriceWithin2Hour();
         int56 delta = int56(avgTick) - int56(stdTick);
         delta = (delta >= 0) ? delta: -delta;
-        require(delta < 2500, "TICK BIAS");
+        require(delta < 2500, "TICK BIAS AS");
+        delta = int56(currentTick) - int56(stdTick);
+        delta = (delta >= 0) ? delta: -delta;
+        require(delta < 2500, "TICK BIAS CS");
         // tickSpacing != 0 is ensured before deploy this contract
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(rewardPool.fee);
         // 1.0001^6932 = 2

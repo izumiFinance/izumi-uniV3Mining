@@ -235,7 +235,10 @@ contract MiningOneSideBoostVeiZi is MiningBaseVeiZi {
 
         int56 delta = int56(avgTick) - int56(stdTick);
         delta = (delta >= 0) ? delta: -delta;
-        require(delta < 2500, "TICK BIAS");
+        require(delta < 2500, "TICK BIAS AS");
+        delta = int56(currTick) - int56(stdTick);
+        delta = (delta >= 0) ? delta: -delta;
+        require(delta < 2500, "TICK BIAS CS");
 
         int24 tickSpacing = IUniswapV3Factory(uniFactory).feeAmountTickSpacing(
             rewardPool.fee
