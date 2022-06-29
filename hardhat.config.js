@@ -2,7 +2,7 @@ require("@nomiclabs/hardhat-waffle");
 //require("uniswap-v3-deploy-plugin");
 //require('hardhat-contract-sizer');
 require("@nomiclabs/hardhat-etherscan");
-//require("@nomiclabs/hardhat-truffle5");
+require("@nomiclabs/hardhat-truffle5");
 // require('hardhat-docgen');
 
 // This is a sample Hardhat task. To learn how to create your own go to
