@@ -73,6 +73,11 @@ module.exports = {
       // gas: 90000000,
       gasPrice: 10000000000,
     },
+    goerli: {
+      url: 'https://goerli.prylabs.net',
+      accounts: [sk],
+      gasPrice: 10000000000,
+    },
   },
   docgen: {
     path: './docs',

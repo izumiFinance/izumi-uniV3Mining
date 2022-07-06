@@ -185,8 +185,8 @@ async function main() {
   console.log(mining.deployTransaction);
   await mining.deployed();
   
-  // await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
-  // await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
+  await approve(await attachToken(para.rewardTokenAddress0), deployer, mining.address, "1000000000000000000000000000000");
+  await approve(await attachToken(para.rewardTokenAddress1), deployer, mining.address, "1000000000000000000000000000000");
 
   console.log("MiningFixRangeBoost Contract Address: " , mining.address);
 
